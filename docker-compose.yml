@@ -1,0 +1,3 @@
+# docker-compose.yml — اسکلت WP-1
+# سرویس‌های هدف (WP-8): Qdrant, PostgreSQL, n8n, Redis, Open WebUI
+# Ollama عمداً اینجا نیست — Native روی macOS اجرا می‌شود.
