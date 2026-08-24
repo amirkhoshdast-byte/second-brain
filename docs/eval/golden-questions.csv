@@ -1,0 +1,51 @@
+id,category,question_fa,expected_doc_type,expected_entity,expected_answer_summary,difficulty,notes
+Q001,country_analysis,در شش ماه گذشته مهم‌ترین تغییرات فضای فرهنگی ترکیه چه بوده است؟,report+signal,CTY-TR-0001,تغییرات کلیدی در دیپلماسی فرهنگی ترکیه با ارجاع به گزارش‌های سازمان,medium,نمونه پرسش کلیدی بخش ۴ سند محصول A
+Q002,entity_relation,یونس امره انستیتو چه فعالیت‌هایی در ترکیه دارد؟,report+organization,ORG-TR-0042,خلاصه فعالیت‌های YEE با ارجاع به گزارش‌ها,medium,آزمون Entity Resolution — باید با alias «YEE» هم پیدا شود
+Q003,decision_history,آخرین تصمیم سازمانی درباره همکاری با نهادهای فرهنگی ترکیه چه بود؟,decision+issue,ISS-HQ-XXXX,تصمیم مرتبط با تاریخ و مرجع مصوبه,hard,آزمون بازیابی موجودیت Decision
+Q004,indicator_definition,شاخص «تعداد رویدادهای فرهنگی برگزارشده» دقیقاً چه چیزی را اندازه می‌گیرد؟,indicator,IND-HQ-0001,تعریف دقیق شاخص با حداقل حضور ۲۰ نفر,easy,آزمون بازیابی تعریف شاخص از مغز دوم
+Q005,comparative,عملکرد نمایندگی ترکیه در برگزاری رویداد نسبت به سال قبل چه تغییری داشته؟,report+indicator,UNT-TR-0001,مقایسه مقادیر IND-HQ-0001 دو دوره متوالی,hard,ترکیب داده B و روایت A
+Q006,obstacle_analysis,رایج‌ترین موانع گزارش‌شده توسط نمایندگی‌ها در فصل گذشته چه بوده؟,report,fact_obstacle,دسته‌بندی موانع با بیشترین فراوانی,medium,آزمون بازیابی از بخش ۳ فرم گزارش
+Q007,person_context,نقش [نام شخص کلیدی در ترکیه] در دیپلماسی فرهنگی چیست؟,person+report,PRS-TR-XXXX,معرفی شخص با ارجاع به گزارش‌های مرتبط,medium,آزمون بازیابی موجودیت Person — نام واقعی TBD
+Q008,signal_to_insight,سیگنال‌های اخیر درباره تغییر رویکرد رسانه‌ای ترکیه نسبت به ایران چیست؟,signal+insight,CTY-TR-0001,خلاصه سیگنال‌ها با تحلیل الگو,hard,آزمون زنجیره Signal→Insight
+Q009,topic_deep,دیپلماسی فرهنگی در منطقه خاورمیانه چه روندی در دو سال اخیر داشته؟,report+signal,TOP-HQ-XXXX,روند موضوع با ارجاع به چندین سند,hard,آزمون Topic-centric retrieval
+Q010,org_agreement,آیا با موسسه یونس امره توافقنامه‌ای داریم؟ جزئیاتش چیست؟,report+decision,ORG-TR-0042,وضعیت توافق با تاریخ و محتوا,medium,آزمون بازیابی اطلاعات قراردادی
+Q011,period_specific,گزارش نمایندگی ترکیه برای فصل اول ۱۴۰۵ چه نکات مهمی داشت؟,report,RPT-TR-XXXX,خلاصه گزارش دوره‌ای با نکات کلیدی,easy,آزمون بازیابی گزارش دوره‌ای خاص
+Q012,multi_country,در چه کشورهایی بیشترین تعداد رویداد فرهنگی برگزار شده؟,indicator,fact_indicator_value,رتبه‌بندی کشورها بر اساس IND-HQ-0001,hard,آزمون cross-unit query — نیازمند ترکیب B و A
+Q013,issue_tracing,مسئله تأخیر در صدور روادید برای رویدادهای فرهنگی چه سابقه‌ای دارد؟,issue+obstacle,ISS-HQ-XXXX,تاریخچه مسئله با تصمیم‌های قبلی,hard,آزمون Issue lifecycle tracking
+Q014,directive_followup,آخرین دستور رئیس درباره گسترش فعالیت‌های آموزشی چه بود و چه نتیجه‌ای داشت؟,directive+decision,DIR-HQ-XXXX,متن دستور + وضعیت اجرا,hard,آزمون Directive→Outcome tracing
+Q015,budget_context,چرا اجرای بودجه نمایندگی ترکیه در فصل گذشته زیر هدف بود؟,report+obstacle,UNT-TR-0001,تحلیل علت با ارجاع به موانع گزارش‌شده,hard,آزمون ترکیب داده کمی B و روایت A
+Q016,reliability_filter,گزارش‌های با اعتبار بالا (reliability=high) درباره جریان‌های دینی ترکیه چه می‌گویند؟,report,CTY-TR-0001,خلاصه منابع معتبر با برچسب reliability,medium,آزمون metadata filtering
+Q017,entity_extraction,در گزارش‌های سه ماه گذشته کدام سازمان‌های ترکیه بیشتر ذکر شده‌اند؟,report,CTY-TR-0001,فهرست سازمان‌ها با فراوانی ذکر,medium,آزمون entity frequency analysis
+Q018,time_comparative,مقایسه تعداد دوره‌های آموزشی فصل اول ۱۴۰۴ در برابر ۱۴۰۵,indicator,IND-HQ-0005,مقایسه عددی با توضیح تغییر,medium,آزمون time-series retrieval
+Q019,special_case,آیا پرونده‌ای درباره چالش‌های دیپلماسی فرهنگی در آسیای مرکزی داریم؟,special_case,SPC-HQ-XXXX,وضعیت و محتوای پرونده ویژه,hard,آزمون SpecialCase entity
+Q020,action_needed,بر اساس سیگنال‌های اخیر درباره ترکیه چه اقداماتی پیشنهاد می‌شود؟,insight+signal,CTY-TR-0001,فهرست توصیه‌های اقدام با ارجاع,hard,آزمون AI synthesis + source attribution
+Q021,country_analysis,[خالی — تکمیل با داده واقعی],,,,,
+Q022,entity_relation,[خالی — تکمیل با داده واقعی],,,,,
+Q023,decision_history,[خالی — تکمیل با داده واقعی],,,,,
+Q024,indicator_definition,[خالی — تکمیل با داده واقعی],,,,,
+Q025,comparative,[خالی — تکمیل با داده واقعی],,,,,
+Q026,obstacle_analysis,[خالی — تکمیل با داده واقعی],,,,,
+Q027,person_context,[خالی — تکمیل با داده واقعی],,,,,
+Q028,signal_to_insight,[خالی — تکمیل با داده واقعی],,,,,
+Q029,topic_deep,[خالی — تکمیل با داده واقعی],,,,,
+Q030,org_agreement,[خالی — تکمیل با داده واقعی],,,,,
+Q031,period_specific,[خالی — تکمیل با داده واقعی],,,,,
+Q032,multi_country,[خالی — تکمیل با داده واقعی],,,,,
+Q033,issue_tracing,[خالی — تکمیل با داده واقعی],,,,,
+Q034,directive_followup,[خالی — تکمیل با داده واقعی],,,,,
+Q035,budget_context,[خالی — تکمیل با داده واقعی],,,,,
+Q036,reliability_filter,[خالی — تکمیل با داده واقعی],,,,,
+Q037,entity_extraction,[خالی — تکمیل با داده واقعی],,,,,
+Q038,time_comparative,[خالی — تکمیل با داده واقعی],,,,,
+Q039,special_case,[خالی — تکمیل با داده واقعی],,,,,
+Q040,action_needed,[خالی — تکمیل با داده واقعی],,,,,
+Q041,country_analysis,[خالی — تکمیل با داده واقعی],,,,,
+Q042,entity_relation,[خالی — تکمیل با داده واقعی],,,,,
+Q043,decision_history,[خالی — تکمیل با داده واقعی],,,,,
+Q044,indicator_definition,[خالی — تکمیل با داده واقعی],,,,,
+Q045,comparative,[خالی — تکمیل با داده واقعی],,,,,
+Q046,obstacle_analysis,[خالی — تکمیل با داده واقعی],,,,,
+Q047,person_context,[خالی — تکمیل با داده واقعی],,,,,
+Q048,signal_to_insight,[خالی — تکمیل با داده واقعی],,,,,
+Q049,topic_deep,[خالی — تکمیل با داده واقعی],,,,,
+Q050,action_needed,[خالی — تکمیل با داده واقعی],,,,,
