@@ -8,6 +8,7 @@
 |---|---|
 | [`PLATFORM.md`](./PLATFORM.md) | سند اجرایی مرجع پلتفرم — تصمیم معماری تثبیت‌شده |
 | [`INTEGRATION_CONTRACT.md`](./INTEGRATION_CONTRACT.md) | قرارداد یکپارچگی بین محصول A و B — واژگان مشترک، شناسه‌گذاری، JSON Schema |
+| [`schemas/`](./schemas/) | JSON Schema ماشین‌خوان بلوک متادیتای مشترک |
 | [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) | فرض‌های صریح درباره BPMS، مقیاس و سؤالات هنوز بی‌پاسخ |
 | [`core/`](./core/) | مؤلفه‌های هسته مشترک: هستان‌شناسی، رجیستری موجودیت، امنیت، حاکمیت |
 | [`product-a-second-brain/`](./product-a-second-brain/) | مستندات محصول A — مغز دوم سازمانی |

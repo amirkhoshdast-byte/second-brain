@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.internal/schemas/common-metadata.schema.json",
+  "title": "Common Metadata Block",
+  "description": "بلوک متادیتای مشترک اجباری برای هر رکورد در محصول A و B — طبق docs/INTEGRATION_CONTRACT.md بخش ۱ و ۶. نسخه قرارداد: 1.0",
+  "type": "object",
+  "required": ["entity_id", "period_id", "classification", "provenance"],
+  "properties": {
+    "entity_id": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,4}-[A-Z0-9]+-[0-9]{4}$",
+      "description": "شناسه یکتای سراسری طبق INTEGRATION_CONTRACT.md بخش ۲"
+    },
+    "unit_id": {
+      "type": ["string", "null"],
+      "pattern": "^UNT-[A-Z0-9]+-[0-9]{4}$",
+      "description": "واحد سازمانی مسئول؛ نال‌پذیر فقط برای موجودیت‌های بیرون از سلسله‌مراتب واحدها"
+    },
+    "period_id": {
+      "type": "string",
+      "pattern": "^[0-9]{4}(-Q[1-4]|-M(0[1-9]|1[0-2]))?$",
+      "description": "دوره زمانی استاندارد شمسی — سال، فصل یا ماه، طبق بخش ۳"
+    },
+    "issue_id": {
+      "type": ["string", "null"],
+      "pattern": "^ISS-[A-Z0-9]+-[0-9]{4}$",
+      "description": "ارجاع اختیاری به موجودیت Issue"
+    },
+    "classification": {
+      "type": "string",
+      "enum": ["public", "internal", "restricted", "confidential"]
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_system", "ingested_at", "ingestion_method"],
+      "properties": {
+        "source_system": {
+          "type": "string",
+          "description": "مثال: bpms, obsidian-manual, web-clipper, n8n-ingestion"
+        },
+        "source_ref": {
+          "type": ["string", "null"],
+          "description": "شناسه داخلی سیستم مبدأ، مثلاً شماره کارتابل BPMS"
+        },
+        "ingested_at": { "type": "string", "format": "date-time" },
+        "ingested_by": { "type": ["string", "null"] },
+        "ingestion_method": {
+          "type": "string",
+          "enum": ["manual", "automated", "api"]
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}
