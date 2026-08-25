@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Yekan Bakh FaNum ─────────────────────────────────────────────────── */
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-Light.woff2") format("woff2"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-ExtraBold.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "YekanBakh"; src: url("/fonts/YekanBakhFaNum-Black.woff2") format("woff2"); font-weight: 900; font-style: normal; font-display: swap; }
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "YekanBakh", system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --radius: 0.75rem;
+}
+
+/* ─── Control-AI Policy Platform · Deep Teal + Champagne ────────────────── */
+:root {
+  /* Canvas — near-black with a green cast */
+  --canvas:      #030907;
+  --canvas-2:    #06110E;
+
+  /* Glass panels */
+  --panel:       rgba(12, 30, 26, 0.55);
+  --panel-solid: #0A1815;
+  --panel-hi:    rgba(18, 40, 35, 0.72);
+
+  /* Hairline borders */
+  --hair:        rgba(255, 255, 255, 0.07);
+  --hair-2:      rgba(255, 255, 255, 0.12);
+
+  /* Champagne / gold — primary accent */
+  --gold:        #D9BE8A;
+  --gold-hi:     #EBD6AE;
+  --gold-dim:    rgba(217, 190, 138, 0.14);
+  --gold-line:   rgba(217, 190, 138, 0.38);
+
+  /* Node palette — data categories */
+  --mint:        #6FE0C0;
+  --rose:        #E88BA8;
+  --lavender:    #A99BE8;
+  --sky:         #7EC8E8;
+
+  /* Semantic */
+  --ok:          #4ADE9C;
+  --warn:        #E8B44A;
+  --bad:         #E8697A;
+
+  /* Text */
+  --text-1:      #EAF2EF;
+  --text-2:      #93A9A3;
+  --text-3:      #566C66;
+
+  /* Radius */
+  --r-pill:      999px;
+  --r-ctl:       10px;
+  --r-card:      14px;
+  --r-panel:     18px;
+
+  /* shadcn compat */
+  --background: var(--canvas);
+  --foreground: var(--text-1);
+  --card: var(--panel-solid);
+  --card-foreground: var(--text-1);
+  --primary: var(--gold);
+  --primary-foreground: #1A1508;
+  --border: var(--hair);
+  --input: var(--panel-solid);
+  --ring: var(--gold);
+  --muted: var(--panel-solid);
+  --muted-foreground: var(--text-3);
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    font-family: "YekanBakh", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--text-1);
+    font-family: "YekanBakh", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(217,190,138,0.20); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(217,190,138,0.40); }
+
+  :focus-visible { outline: 1px solid var(--gold-line); outline-offset: 2px; border-radius: var(--r-ctl); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+/* ─── Glass panel — the platform's core surface ─────────────────────────── */
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(20px) saturate(130%);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+}
+
+/* Dotted leader line (Issued Date ....... 21 Nov 2014) */
+.leader {
+  flex: 1;
+  border-bottom: 1px dotted rgba(255,255,255,0.14);
+  margin: 0 8px;
+  transform: translateY(-3px);
+}
+
+/* ─── Animations ────────────────────────────────────────────────────────── */
+@keyframes bounce3   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+@keyframes spin1     { to{transform:rotate(360deg)} }
+@keyframes fadeIn    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulseOp   { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes orbGlow {
+  0%,100% { box-shadow: 0 0 22px rgba(111,224,192,0.20), inset 0 0 18px rgba(255,255,255,0.06); }
+  50%     { box-shadow: 0 0 44px rgba(111,224,192,0.38), inset 0 0 18px rgba(255,255,255,0.10); }
+}
+@keyframes dotPulse  { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.35)} }
+
+.anim-bounce { animation: bounce3 1.2s infinite; }
+.anim-spin   { animation: spin1 0.75s linear infinite; }
+.anim-fadein { animation: fadeIn 0.28s ease both; }
+.anim-pulse  { animation: pulseOp 1.6s ease infinite; }
+.anim-orb    { animation: orbGlow 4s ease infinite; }
+.anim-dot    { animation: dotPulse 2.2s ease infinite; }
+
+select option { background: var(--panel-solid); color: var(--text-1); }
