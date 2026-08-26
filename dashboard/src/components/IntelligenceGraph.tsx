@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 
 /**
@@ -224,6 +224,11 @@ const DEFAULT_INSPECTOR = {
 };
 
 // ─── کامپوننت ─────────────────────────────────────────────────────────────────
+/** مختصات اولیه‌ی هر گره، جدا از تعریف ثابتش تا قابل جابه‌جایی بماند */
+function initialPositions(): Record<string, { x: number; y: number }> {
+  return Object.fromEntries(NODES.map((n) => [n.id, { x: n.x, y: n.y }]));
+}
+
 export default function IntelligenceGraph() {
   const [selected, setSelected] = useState<string | null>("e-issue-farsi");
   const [views, setViews] = useState<Record<System, boolean>>({ knowledge: true, execution: true });
@@ -232,7 +237,51 @@ export default function IntelligenceGraph() {
   const [showFilter, setShowFilter] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const byId = useMemo(() => Object.fromEntries(NODES.map((n) => [n.id, n])), []);
+  /** موقعیت گره‌ها؛ کاربر می‌تواند با کشیدن ماوس تغییرشان دهد */
+  const [pos, setPos] = useState(initialPositions);
+
+  const zoomRef = useRef<SVGGElement>(null);
+  /**
+   * وضعیت کشیدن. در ref نگه داشته می‌شود نه state، چون در هر حرکت ماوس
+   * تغییر می‌کند و نباید رندر اضافه بسازد.
+   */
+  const drag = useRef<{ id: string; moved: boolean } | null>(null);
+
+  /** گره با مختصات جاری — یال‌ها و گره‌ها هر دو از این می‌خوانند */
+  const byId = useMemo(
+    () => Object.fromEntries(NODES.map((n) => [n.id, { ...n, ...pos[n.id] }])),
+    [pos]
+  );
+
+  /**
+   * تبدیل مختصات صفحه به فضای گروهِ zoom.
+   *
+   * از getScreenCTM خود گروه استفاده می‌شود تا هم viewBox و هم ترنسفورم
+   * بزرگ‌نمایی یکجا معکوس شوند؛ محاسبه‌ی دستی این دو با هم خطاخیز است.
+   */
+  const toLocal = (clientX: number, clientY: number) => {
+    const g = zoomRef.current;
+    const m = g?.getScreenCTM();
+    if (!m) return null;
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drag.current) return;
+    const p = toLocal(e.clientX, e.clientY);
+    if (!p) return;
+    drag.current.moved = true;
+    const id = drag.current.id;
+    setPos((prev) => ({ ...prev, [id]: { x: p.x, y: p.y } }));
+  };
+
+  const endDrag = () => {
+    const d = drag.current;
+    drag.current = null;
+    // کشیدن نباید انتخاب را عوض کند؛ فقط کلیکِ بدون حرکت انتخاب می‌کند
+    if (d && !d.moved) setSelected((s) => (s === d.id ? null : d.id));
+  };
 
   const visibleEdges = useMemo(
     () => EDGES.filter((e) => views[e.system]),
@@ -282,7 +331,14 @@ export default function IntelligenceGraph() {
           از ویوپورت می‌شود و راهنما و نوار فرمان زیر خط دید می‌افتند.
         */}
         <svg viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet"
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerLeave={endDrag}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%", display: "block",
+            // حین کشیدن، انتخاب متن و اسکرول لمسی نباید دخالت کند
+            touchAction: "none", userSelect: "none",
+          }}>
           <defs>
             <radialGradient id="coreGlow">
               <stop offset="0%"   stopColor={T.gold}    stopOpacity="0.30" />
@@ -303,7 +359,7 @@ export default function IntelligenceGraph() {
           {/* نور محیطی برای عمق */}
           <ellipse cx={CX} cy={CY - 30} rx={430} ry={340} fill="url(#ambient)" />
 
-          <g transform={`translate(${CX} ${CY}) scale(${zoom}) translate(${-CX} ${-CY})`}>
+          <g ref={zoomRef} transform={`translate(${CX} ${CY}) scale(${zoom}) translate(${-CX} ${-CY})`}>
             {/* یال‌ها */}
             {visibleEdges.map((e, i) => {
               const a = byId[e.from];
@@ -326,19 +382,28 @@ export default function IntelligenceGraph() {
             })}
 
             {/* گره‌ها */}
-            {NODES.map((n) => {
+            {NODES.map((base) => {
+              const n = byId[base.id];
               if (nodeHidden(n)) return null;
               const isSel = n.id === selected;
               const dim = isDimmed(n.id);
               const r = radiusOf(n) * (isSel ? 1.22 : 1);
               const c = toneColor[n.tone];
               const labelOnLeft = n.x < CX;
+              const isDragging = drag.current?.id === n.id;
 
               return (
                 <g
                   key={n.id}
-                  onClick={() => setSelected(n.id === selected ? null : n.id)}
-                  style={{ cursor: "pointer", opacity: dim ? 0.42 : 1, transition: "opacity 0.25s" }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    drag.current = { id: n.id, moved: false };
+                  }}
+                  style={{
+                    cursor: isDragging ? "grabbing" : "grab",
+                    opacity: dim ? 0.42 : 1,
+                    transition: "opacity 0.25s",
+                  }}
                 >
                   {n.kind === "center" ? (
                     <>
@@ -411,7 +476,11 @@ export default function IntelligenceGraph() {
           <span style={{ width: 1, height: 16, background: T.hair }} />
           <button onClick={() => setZoom((z) => Math.min(2, +(z + 0.15).toFixed(2)))} style={ctlStyle}>بزرگ‌نمایی</button>
           <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)))} style={ctlStyle}>کوچک‌نمایی</button>
-          <button onClick={() => { setZoom(1); setSelected(null); setQuery(""); }} style={ctlStyle}>مرکز گراف</button>
+          <button
+            onClick={() => { setZoom(1); setSelected(null); setQuery(""); setPos(initialPositions()); }}
+            title="بازگشت به چیدمان اولیه"
+            style={ctlStyle}
+          >مرکز گراف</button>
 
           <span style={{ width: 1, height: 16, background: T.hair }} />
           {([["knowledge", "دانش"], ["execution", "مسئله تا اجرا"]] as Array<[System, string]>).map(([k, label]) => {
