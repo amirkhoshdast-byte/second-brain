@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { T } from "@/lib/theme";
 import Gauge from "@/components/Gauge";
 
@@ -60,11 +60,42 @@ const REGIONS = [
 const dirMark = { up: "↑", down: "↓", flat: "→" };
 const dirTone = { up: T.ok, down: T.bad, flat: T.t3 };
 
+type IntelData = {
+  ready: boolean;
+  documents?: number; recent?: number; countries?: number; confidence?: number;
+  entities?: { topic: number; person: number; org: number; event: number };
+  signals?: Array<{ id: number; stype: string; title: string; description: string;
+                    country: string | null; topic: string | null;
+                    importance: string | null; confidence: number;
+                    direction: string | null; evidence: number }>;
+  regions?: Array<{ region: string; n: number }>;
+  flow?: Array<{ m: string; n: number }>;
+};
+
+const stypeTone: Record<string, string> = {
+  trend: T.lavender, signal: T.lavender, insight: T.sky,
+  risk: T.bad, opportunity: T.ok,
+};
+const stypeFa: Record<string, string> = {
+  trend: "روند", signal: "سیگنال", insight: "بینش",
+  risk: "ریسک", opportunity: "فرصت",
+};
+
 export default function InternationalDashboard({
   reportCount, onOpenGraph,
 }: { reportCount: number | null; onOpenGraph?: () => void }) {
   const [range, setRange] = useState<"هفته" | "ماه" | "فصل">("ماه");
   const [scope] = useState<Scope>({ level: "جهان", label: "همه مناطق" });
+
+  /**
+   * خروجی خط لوله. تا وقتی استخراج اجرا نشده، ready=false می‌ماند و صفحه
+   * به‌جای نمایش عدد نمونه، صریح می‌گوید محاسبه نشده.
+   */
+  const [intel, setIntel] = useState<IntelData | null>(null);
+  useEffect(() => {
+    fetch("/api/intel").then((r) => r.json()).then(setIntel).catch(() => setIntel({ ready: false }));
+  }, []);
+  const live = intel?.ready ? intel : null;
 
   const rows = FLOW[range];
   const totals = useMemo(() => {
@@ -81,6 +112,15 @@ export default function InternationalDashboard({
         flexShrink: 0, flexWrap: "wrap",
       }}>
         <Breadcrumb scope={scope} />
+        {/* وضعیت خط لوله صریح اعلام می‌شود؛ «صفر» و «محاسبه نشده» یکی نیستند */}
+        <span style={{
+          fontSize: 9, borderRadius: T.rPill, padding: "3px 10px",
+          color: live ? T.ok : T.warn,
+          background: live ? "rgba(74,222,156,0.10)" : "rgba(232,180,74,0.10)",
+          border: `1px solid ${live ? "rgba(74,222,156,0.3)" : "rgba(232,180,74,0.3)"}`,
+        }}>
+          {live ? `استخراج فعال · ${live.documents} سند` : "خط لوله اجرا نشده — اعداد نمونه"}
+        </span>
         <span style={{ flex: 1 }} />
         {["بازه زمانی", "منطقه", "کشور", "نمایندگی", "واحد ستادی", "موضوع", "نوع منبع"].map((f) => (
           <button key={f} style={filterBtn}>{f} ▾</button>
@@ -96,12 +136,14 @@ export default function InternationalDashboard({
           <Card>
             <CardTitle>شاخص پوشش اطلاعاتی</CardTitle>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 2 }}>
-              <Gauge value={78} size={190} tone={T.mint} />
+              <Gauge value={live ? Math.round((live.confidence ?? 0) * 100) : 78} size={190} tone={T.mint} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 6 }}>
               {[
-                ["۵۴", "کشور دارای گزارش"], ["۱۹", "نمایندگی فعال"],
-                ["۹۱٪", "تازگی اطلاعات"],   ["۶۸٪", "پوشش موضوعی"],
+                [String(live?.countries ?? "۵۴"), "کشور دارای گزارش"],
+                [String(live?.entities?.org ?? "۱۹"), "سازمان شناسایی‌شده"],
+                [String(live?.entities?.person ?? "۹۱"), "شخص شناسایی‌شده"],
+                [String(live?.entities?.topic ?? "۶۸"), "موضوع فعال"],
               ].map(([v, l]) => <Mini key={l} v={v} l={l} />)}
             </div>
           </Card>
@@ -142,7 +184,7 @@ export default function InternationalDashboard({
                 fontSize: 9.5, color: T.lavender, fontWeight: 600,
                 background: "rgba(169,155,232,0.13)", border: `1px solid rgba(169,155,232,0.32)`,
                 borderRadius: T.rPill, padding: "2px 9px",
-              }}>۲۴ جدید</span>
+              }}>{live ? `${live.signals?.length ?? 0} یافته` : "۲۴ جدید"}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 11 }}>
               {[
@@ -166,11 +208,11 @@ export default function InternationalDashboard({
           {/* شاخص‌های فشرده */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, flexShrink: 0 }}>
             {[
-              [String(reportCount ?? "—"), "گزارش", T.mint],
-              ["۵۴", "کشور", T.sky],
-              ["۳۷", "موضوع", T.sky],
-              ["۱۱۲", "رویداد", T.gold],
-              ["۲۴", "سیگنال", T.lavender],
+              [String(live?.documents ?? reportCount ?? "—"), "گزارش", T.mint],
+              [String(live?.countries ?? "۵۴"), "کشور", T.sky],
+              [String(live?.entities?.topic ?? "۳۷"), "موضوع", T.sky],
+              [String(live?.entities?.event ?? "۱۱۲"), "رویداد", T.gold],
+              [String(live?.signals?.length ?? "۲۴"), "سیگنال", T.lavender],
             ].map(([v, l, c]) => (
               <div key={l} className="panel" style={{ padding: "11px 13px", borderRadius: T.rCard }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -219,7 +261,19 @@ export default function InternationalDashboard({
           <Card>
             <CardTitle>نیازمند توجه</CardTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-              {ATTENTION.map((a) => (
+              {(live?.signals?.length
+                ? live.signals.slice(0, 6).map((s) => ({
+                    kind: stypeFa[s.stype] ?? s.stype,
+                    title: s.title,
+                    country: s.country ?? "چند کشور",
+                    topic: s.topic ?? `${s.evidence} سند شاهد`,
+                    weight: s.importance ?? "متوسط",
+                    trend: s.direction ?? "flat",
+                    conf: Math.round(s.confidence * 100),
+                    tone: stypeTone[s.stype] ?? T.lavender,
+                  }))
+                : ATTENTION
+              ).map((a) => (
                 <div key={a.title} style={{
                   background: "rgba(0,0,0,0.2)", border: `1px solid ${T.hair}`,
                   borderRadius: T.rCtl, padding: "9px 11px",
@@ -247,7 +301,17 @@ export default function InternationalDashboard({
           <Card>
             <CardTitle>مناطق فعال</CardTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 11 }}>
-              {REGIONS.map((r) => (
+              {(live?.regions?.length
+                ? (() => {
+                    const max = Math.max(...live.regions.map((x) => x.n));
+                    return live.regions.map((x) => ({
+                      label: x.region,
+                      v: Math.round((x.n / max) * 100),
+                      dir: "flat",
+                    }));
+                  })()
+                : REGIONS
+              ).map((r) => (
                 <div key={r.label}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 10, color: T.t2 }}>{r.label}</span>
