@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 
 /**
@@ -239,6 +239,10 @@ export default function IntelligenceGraph() {
 
   /** موقعیت گره‌ها؛ کاربر می‌تواند با کشیدن ماوس تغییرشان دهد */
   const [pos, setPos] = useState(initialPositions);
+  /** جابه‌جایی کل بوم با کشیدن فضای خالی */
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  /** گره زیر نشانگر — روابطش موقتاً روشن می‌شود */
+  const [hover, setHover] = useState<string | null>(null);
 
   const zoomRef = useRef<SVGGElement>(null);
   /**
@@ -246,6 +250,7 @@ export default function IntelligenceGraph() {
    * تغییر می‌کند و نباید رندر اضافه بسازد.
    */
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
+  const panning = useRef<{ x: number; y: number; from: { x: number; y: number } } | null>(null);
 
   /** گره با مختصات جاری — یال‌ها و گره‌ها هر دو از این می‌خوانند */
   const byId = useMemo(
@@ -268,6 +273,14 @@ export default function IntelligenceGraph() {
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (panning.current) {
+      // pan در فضای صفحه محاسبه می‌شود تا سرعتش با zoom تغییر نکند
+      setPan({
+        x: panning.current.from.x + (e.clientX - panning.current.x),
+        y: panning.current.from.y + (e.clientY - panning.current.y),
+      });
+      return;
+    }
     if (!drag.current) return;
     const p = toLocal(e.clientX, e.clientY);
     if (!p) return;
@@ -277,11 +290,47 @@ export default function IntelligenceGraph() {
   };
 
   const endDrag = () => {
+    panning.current = null;
     const d = drag.current;
     drag.current = null;
     // کشیدن نباید انتخاب را عوض کند؛ فقط کلیکِ بدون حرکت انتخاب می‌کند
     if (d && !d.moved) setSelected((s) => (s === d.id ? null : d.id));
   };
+
+  /** کشیدن فضای خالی = جابه‌جایی بوم */
+  const startPan = (e: React.PointerEvent<SVGSVGElement>) => {
+    panning.current = { x: e.clientX, y: e.clientY, from: pan };
+  };
+
+  /**
+   * زوم با غلتک، لنگرانداخته به نشانگر.
+   *
+   * بدون جبران pan، نقطه‌ی زیر ماوس با هر زوم جابه‌جا می‌شود و کاوش شبکه
+   * آزاردهنده می‌شود؛ فرمول pan را طوری تصحیح می‌کند که همان نقطه ثابت بماند.
+   */
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    const p = toLocal(e.clientX, e.clientY);
+    if (!p) return;
+    const next = Math.min(2.4, Math.max(0.5, +(zoom * (e.deltaY < 0 ? 1.12 : 0.89)).toFixed(3)));
+    if (next === zoom) return;
+    setPan((prev) => ({
+      x: prev.x + (p.x - CX) * (zoom - next),
+      y: prev.y + (p.y - CY) * (zoom - next),
+    }));
+    setZoom(next);
+  };
+
+  /** گره‌های همسایه‌ی گره‌ای که ماوس رویش است */
+  const hoverSet = useMemo(() => {
+    if (!hover) return new Set<string>();
+    const s = new Set<string>([hover]);
+    for (const e of EDGES) {
+      if (!views[e.system]) continue;
+      if (e.from === hover) s.add(e.to);
+      if (e.to === hover) s.add(e.from);
+    }
+    return s;
+  }, [hover, views]);
 
   const visibleEdges = useMemo(
     () => EDGES.filter((e) => views[e.system]),
@@ -307,9 +356,22 @@ export default function IntelligenceGraph() {
 
   const isDimmed = (id: string) => {
     if (matches) return !matches.has(id);
+    // هاور بر انتخاب اولویت دارد تا بشود بدون از دست دادن انتخاب، شبکه را ردیابی کرد
+    if (hover) return !hoverSet.has(id);
     if (!selected) return false;
     return !neighbours.has(id);
   };
+
+  // Esc: ابتدا جستجو، بعد انتخاب را پاک می‌کند
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (query) setQuery("");
+      else setSelected(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [query]);
 
   const nodeHidden = (n: GNode) => n.domain !== undefined && hidden.has(n.domain);
 
@@ -331,13 +393,16 @@ export default function IntelligenceGraph() {
           از ویوپورت می‌شود و راهنما و نوار فرمان زیر خط دید می‌افتند.
         */}
         <svg viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet"
+          onPointerDown={startPan}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
-          onPointerLeave={endDrag}
+          onPointerLeave={() => { endDrag(); setHover(null); }}
+          onWheel={onWheel}
           style={{
             position: "absolute", inset: 0, width: "100%", height: "100%", display: "block",
             // حین کشیدن، انتخاب متن و اسکرول لمسی نباید دخالت کند
             touchAction: "none", userSelect: "none",
+            cursor: panning.current ? "grabbing" : "default",
           }}>
           <defs>
             <radialGradient id="coreGlow">
@@ -359,14 +424,16 @@ export default function IntelligenceGraph() {
           {/* نور محیطی برای عمق */}
           <ellipse cx={CX} cy={CY - 30} rx={430} ry={340} fill="url(#ambient)" />
 
-          <g ref={zoomRef} transform={`translate(${CX} ${CY}) scale(${zoom}) translate(${-CX} ${-CY})`}>
+          <g ref={zoomRef} transform={`translate(${pan.x} ${pan.y}) translate(${CX} ${CY}) scale(${zoom}) translate(${-CX} ${-CY})`}>
             {/* یال‌ها */}
             {visibleEdges.map((e, i) => {
               const a = byId[e.from];
               const b = byId[e.to];
               if (!a || !b || nodeHidden(a) || nodeHidden(b)) return null;
-              const lit = selected ? neighbours.has(e.from) && neighbours.has(e.to) : false;
-              const dim = selected ? !lit : false;
+              // هاور موقتاً روابط را ردیابی می‌کند بدون آنکه انتخاب را عوض کند
+              const onHover = hover ? e.from === hover || e.to === hover : false;
+              const lit = onHover || (selected ? neighbours.has(e.from) && neighbours.has(e.to) : false);
+              const dim = !lit && (selected !== null || hover !== null);
               const tone = e.system === "execution" ? T.gold : T.mint;
               return (
                 <path
@@ -377,6 +444,7 @@ export default function IntelligenceGraph() {
                   strokeWidth={lit ? 1.5 : e.strong ? 1.1 : 0.7}
                   strokeOpacity={dim ? 0.09 : lit ? 0.8 : e.strong ? 0.32 : 0.17}
                   strokeLinecap="round"
+                  style={{ transition: "stroke-opacity 0.18s, stroke 0.18s" }}
                 />
               );
             })}
@@ -396,9 +464,12 @@ export default function IntelligenceGraph() {
                 <g
                   key={n.id}
                   onPointerDown={(e) => {
+                    // جلوی pan را می‌گیرد تا کشیدن روی گره، گره را ببرد نه بوم را
                     e.stopPropagation();
                     drag.current = { id: n.id, moved: false };
                   }}
+                  onPointerEnter={() => setHover(n.id)}
+                  onPointerLeave={() => setHover((h) => (h === n.id ? null : h))}
                   style={{
                     cursor: isDragging ? "grabbing" : "grab",
                     opacity: dim ? 0.42 : 1,
@@ -477,7 +548,7 @@ export default function IntelligenceGraph() {
           <button onClick={() => setZoom((z) => Math.min(2, +(z + 0.15).toFixed(2)))} style={ctlStyle}>بزرگ‌نمایی</button>
           <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)))} style={ctlStyle}>کوچک‌نمایی</button>
           <button
-            onClick={() => { setZoom(1); setSelected(null); setQuery(""); setPos(initialPositions()); }}
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setSelected(null); setQuery(""); setPos(initialPositions()); }}
             title="بازگشت به چیدمان اولیه"
             style={ctlStyle}
           >مرکز گراف</button>
