@@ -10,22 +10,42 @@ import { T } from "@/lib/theme";
  * می‌بینید چه چیزی به چه چیزی وصل است و کجا باید کاوش کنید. به همین دلیل
  * کارت‌های KPI اینجا تکرار نشده‌اند — گراف خودش رابط کاربری است.
  *
- * دو نظام رابطه در یک شبکه هم‌زیست‌اند:
- *   دانش   : کشور → موضوع → سازمان → شخص → گزارش → رویداد → شواهد
- *   اجرا   : مسئله → جلسه → تصمیم → مصوبه → مسئول → اقدام → پروژه → مانع → نتیجه
+ * پیام اصلی محصول: «گزارش‌های سازمانی به هوش بین‌المللی ساختارمند تبدیل می‌شوند.»
+ * بنابراین ستون فقرات گراف این است:
+ *
+ *   منطقه → کشور → نمایندگی → گزارش → (موضوع، شخص، سازمان، رویداد، منبع)
+ *   و سپس لایه‌ی استخراج هوش مصنوعی: روند → سیگنال → ریسک/فرصت → بینش
+ *
+ * ارزش اصلی، هوشِ میان‌گزارشی است: یک بینش از چند گزارش بیرون می‌آید، نه از یکی.
+ * زنجیره‌ی اجرا (مسئله → تصمیم → مصوبه → اقدام → پروژه → نتیجه) هنوز هست اما
+ * پیش‌فرض خاموش است تا نمای پیش‌فرض را از «دانش و رصد» منحرف نکند.
  */
 
-type Tone = "teal" | "gold" | "blue" | "risk" | "done";
-type Kind = "center" | "domain" | "entity";
+/** تفکیک بصری دانشِ منبع از هوشِ استخراج‌شده */
+type Origin = "source" | "ai";
+
+/** نوع هستان‌شناختی گره — جدا از رده‌ی بصری، تا بازرس بتواند بر اساسش تصمیم بگیرد */
+type EType =
+  | "country" | "region" | "mission" | "report" | "source"
+  | "topic" | "person" | "org" | "event" | "religion"
+  | "trend" | "signal" | "risk" | "opportunity" | "insight"
+  | "issue" | "decision" | "directive" | "action" | "project" | "result";
+
+/** رده‌ی بصری: اندازه و وزن گره. گزارش عمداً رده‌ی خودش را دارد چون شهروند درجه‌یک است. */
+type Kind = "center" | "primary" | "report" | "entity";
+
+type Tone = "teal" | "gold" | "blue" | "ai" | "risk" | "done";
 type System = "knowledge" | "execution";
 
 type GNode = {
   id: string;
   label: string;
   kind: Kind;
+  etype: EType;
+  origin: Origin;
   tone: Tone;
-  /** دامنه‌ی والد — برای خوشه‌بندی فضایی و فیلتر */
-  domain?: string;
+  /** خوشه‌ی والد — برای فیلتر و نمایش زمینه در نوار فرمان */
+  cluster?: string;
   x: number;
   y: number;
 };
@@ -34,23 +54,33 @@ type GEdge = {
   from: string;
   to: string;
   system: System;
-  /** روابط مهم پررنگ‌تر دیده می‌شوند */
+  /** برچسب رابطه — در بازرس و راهنمای هاور دیده می‌شود */
+  rel: string;
   strong?: boolean;
 };
 
 const toneColor: Record<Tone, string> = {
-  teal: T.mint,
-  gold: T.gold,
-  blue: T.sky,
+  teal: T.mint,      // گزارش و منبع — دانش خام
+  gold: T.gold,      // مرکز و انتخاب
+  blue: T.sky,       // موجودیت استخراج‌شده از گزارش
+  ai: T.lavender,    // هوش استخراجی
   risk: T.bad,
   done: T.ok,
+};
+
+/** برچسب فارسی هر نوع، برای بازرس */
+const typeLabel: Record<EType, string> = {
+  country: "کشور", region: "منطقه", mission: "نمایندگی فرهنگی",
+  report: "گزارش", source: "منبع", topic: "موضوع", person: "شخص",
+  org: "سازمان", event: "رویداد", religion: "دین / جریان فرهنگی",
+  trend: "روند", signal: "سیگنال", risk: "ریسک", opportunity: "فرصت",
+  insight: "بینش هوشمند", issue: "مسئله", decision: "تصمیم",
+  directive: "مصوبه / دستور", action: "اقدام", project: "پروژه", result: "نتیجه",
 };
 
 // ─── چیدمان ───────────────────────────────────────────────────────────────────
 const CX = 500;
 const CY = 400;
-const R_DOMAIN = 186;
-const R_ENTITY = 322;
 
 /** زاویه بر حسب درجه، ساعتگرد از بالا */
 function polar(deg: number, r: number) {
@@ -58,105 +88,150 @@ function polar(deg: number, r: number) {
   return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
 }
 
-const DOMAINS: Array<{ id: string; label: string; deg: number; tone: Tone }> = [
-  { id: "d-countries", label: "کشورها",    deg: 0,   tone: "blue" },
-  { id: "d-topics",    label: "موضوعات",   deg: 40,  tone: "teal" },
-  { id: "d-orgs",      label: "سازمان‌ها", deg: 80,  tone: "teal" },
-  { id: "d-people",    label: "اشخاص",     deg: 120, tone: "teal" },
-  { id: "d-reports",   label: "گزارش‌ها",  deg: 160, tone: "teal" },
-  { id: "d-issues",    label: "مسائل",     deg: 200, tone: "gold" },
-  { id: "d-decisions", label: "مصوبات",    deg: 240, tone: "gold" },
-  { id: "d-projects",  label: "پروژه‌ها",  deg: 280, tone: "blue" },
-  { id: "d-events",    label: "رویدادها",  deg: 320, tone: "teal" },
-];
+type Spec = {
+  id: string; label: string; etype: EType; origin?: Origin;
+  kind?: Kind; tone?: Tone; cluster?: string; deg: number; r: number;
+};
 
-/** موجودیت‌های سطح دوم — عمداً نمونه‌ای، نه کل پایگاه دانش */
-const ENTITIES: Array<{ id: string; label: string; domain: string; deg: number; r?: number; tone?: Tone }> = [
-  { id: "e-indonesia",  label: "اندونزی",              domain: "d-countries", deg: -14 },
-  { id: "e-turkey",     label: "ترکیه",                domain: "d-countries", deg: 12 },
-  { id: "e-afg",        label: "افغانستان",            domain: "d-countries", deg: 34, r: 300 },
+/**
+ * چیدمان روایت‌محور است نه تصادفی: زمینه‌ی ساختاری بالا، گزارش‌ها در کمان راست،
+ * موجودیت‌های استخراج‌شده بیرون آن‌ها، و هوش استخراجی در کمان چپ جدا می‌نشیند
+ * تا تفکیک «دانش منبع» از «استنتاج AI» در نگاه اول دیده شود.
+ */
+const SPECS: Spec[] = [
+  // ── زمینه‌ی ساختاری ──
+  { id: "region-sea",  label: "جنوب شرق آسیا",              etype: "region",  kind: "primary", tone: "blue", deg: 342, r: 178 },
+  { id: "mission-jkt", label: "رایزنی فرهنگی ایران، جاکارتا", etype: "mission", kind: "primary", tone: "blue", deg: 200, r: 168 },
+  { id: "src-icro",    label: "پایگاه جامعه و فرهنگ ملل",    etype: "source",  kind: "primary", tone: "teal", deg: 258, r: 186 },
 
-  { id: "e-farsi",      label: "توسعه زبان فارسی",     domain: "d-topics",    deg: 30 },
-  { id: "e-culdip",     label: "دیپلماسی فرهنگی",      domain: "d-topics",    deg: 56 },
+  // ── گزارش‌ها: شهروند درجه‌یک، کمان بالا-راست ──
+  { id: "rep-farsi", label: "گزارش وضعیت زبان فارسی",  etype: "report", kind: "report", tone: "teal", cluster: "گزارش‌ها", deg: 22,  r: 232 },
+  { id: "rep-univ",  label: "گزارش دانشگاه‌های اندونزی", etype: "report", kind: "report", tone: "teal", cluster: "گزارش‌ها", deg: 56,  r: 240 },
+  { id: "rep-cult",  label: "گزارش تحولات فرهنگی",     etype: "report", kind: "report", tone: "teal", cluster: "گزارش‌ها", deg: 90,  r: 232 },
+  { id: "rep-faith", label: "گزارش گفت‌وگوی ادیان",     etype: "report", kind: "report", tone: "teal", cluster: "گزارش‌ها", deg: 124, r: 238 },
 
-  { id: "e-unesco",     label: "یونسکو",               domain: "d-orgs",      deg: 72 },
-  { id: "e-diyanet",    label: "دیانت ترکیه",          domain: "d-orgs",      deg: 96 },
+  // ── موضوعات استخراج‌شده ──
+  { id: "top-farsi",  label: "زبان فارسی",       etype: "topic", tone: "blue", cluster: "موضوعات", deg: 8,   r: 352 },
+  { id: "top-univ",   label: "همکاری دانشگاهی",  etype: "topic", tone: "blue", cluster: "موضوعات", deg: 44,  r: 366 },
+  { id: "top-culdip", label: "دیپلماسی فرهنگی",  etype: "topic", tone: "blue", cluster: "موضوعات", deg: 96,  r: 358 },
+  { id: "top-faith",  label: "گفت‌وگوی ادیان",   etype: "topic", tone: "blue", cluster: "موضوعات", deg: 132, r: 356 },
 
-  { id: "e-rayzan",     label: "رایزن فرهنگی جاکارتا", domain: "d-people",    deg: 120 },
+  // ── اشخاص و سازمان‌های استخراج‌شده ──
+  { id: "per-omar",  label: "نصرالدین عمر",            etype: "person", tone: "blue", cluster: "اشخاص",     deg: 116, r: 424 },
+  { id: "per-rayzan", label: "رایزن فرهنگی جاکارتا",   etype: "person", tone: "blue", cluster: "اشخاص",     deg: 176, r: 300 },
+  { id: "org-religion", label: "وزارت امور دینی اندونزی", etype: "org", tone: "blue", cluster: "سازمان‌ها", deg: 146, r: 420 },
+  { id: "org-univ-jkt", label: "دانشگاه اسلامی جاکارتا",  etype: "org", tone: "blue", cluster: "سازمان‌ها", deg: 62,  r: 436 },
+  { id: "org-unesco",   label: "یونسکو",                 etype: "org", tone: "blue", cluster: "سازمان‌ها", deg: 30,  r: 430 },
 
-  { id: "e-rep-heri",   label: "میراث فرهنگی پاکستان", domain: "d-reports",   deg: 150 },
-  { id: "e-rep-afg",    label: "بحران بشری افغانستان", domain: "d-reports",   deg: 174, r: 300 },
+  // ── رویدادها ──
+  { id: "ev-week",    label: "هفته فرهنگی جاکارتا", etype: "event", tone: "blue", cluster: "رویدادها", deg: 158, r: 356 },
+  { id: "ev-jakarta", label: "بیانیه جاکارتا",      etype: "event", tone: "blue", cluster: "رویدادها", deg: 78,  r: 440 },
 
-  { id: "e-issue-farsi", label: "توسعه زبان فارسی در اندونزی", domain: "d-issues", deg: 202, r: 300, tone: "gold" },
-  { id: "e-issue-heri",  label: "حفاظت میراث مشترک",           domain: "d-issues", deg: 224 },
+  // ── لایه‌ی هوش استخراجی: کمان چپ، جدا از دانش منبع ──
+  { id: "ai-trend-farsi", label: "افزایش تقاضای آموزش زبان فارسی", etype: "trend",       origin: "ai", tone: "ai",   cluster: "هوش استخراجی", deg: 236, r: 320 },
+  { id: "ai-sig-univ",    label: "سیگنال رشد تعامل دانشگاهی",      etype: "signal",      origin: "ai", tone: "ai",   cluster: "هوش استخراجی", deg: 272, r: 330 },
+  { id: "ai-opp-univ",    label: "فرصت همکاری دانشگاهی",           etype: "opportunity", origin: "ai", tone: "done", cluster: "هوش استخراجی", deg: 300, r: 300 },
+  { id: "ai-risk-cover",  label: "ریسک کاهش پوشش آموزشی",          etype: "risk",        origin: "ai", tone: "risk", cluster: "هوش استخراجی", deg: 214, r: 320 },
+  { id: "ai-ins-partner", label: "کاهش فعالیت شریک محلی",          etype: "insight",     origin: "ai", tone: "ai",   cluster: "هوش استخراجی", deg: 320, r: 296 },
 
-  { id: "e-dec-chair",  label: "مصوبه کرسی زبان فارسی", domain: "d-decisions", deg: 246, tone: "gold" },
-
-  { id: "e-prj-chair",  label: "کرسی‌های زبان فارسی",  domain: "d-projects",  deg: 274, tone: "blue" },
-  { id: "e-risk-staff", label: "کمبود استاد اعزامی",   domain: "d-projects",  deg: 296, r: 300, tone: "risk" },
-  { id: "e-res-three",  label: "راه‌اندازی ۳ کرسی",    domain: "d-projects",  deg: 258, r: 392, tone: "done" },
-
-  { id: "e-ev-week",    label: "هفته فرهنگی جاکارتا",  domain: "d-events",    deg: 322 },
+  // ── زنجیره‌ی اجرا: پیش‌فرض خاموش ──
+  { id: "ex-issue", label: "توسعه زبان فارسی در اندونزی", etype: "issue",     tone: "gold", cluster: "اجرا", deg: 188, r: 430 },
+  { id: "ex-dec",   label: "مصوبه کرسی زبان فارسی",       etype: "directive", tone: "gold", cluster: "اجرا", deg: 206, r: 452 },
+  { id: "ex-prj",   label: "کرسی‌های زبان فارسی",         etype: "project",   tone: "gold", cluster: "اجرا", deg: 228, r: 462 },
+  { id: "ex-res",   label: "راه‌اندازی ۳ کرسی",           etype: "result",    tone: "done", cluster: "اجرا", deg: 250, r: 452 },
 ];
 
 const NODES: GNode[] = [
-  { id: "iran", label: "ایران", kind: "center", tone: "gold", x: CX, y: CY },
-  ...DOMAINS.map((d) => {
-    const p = polar(d.deg, R_DOMAIN);
-    return { id: d.id, label: d.label, kind: "domain" as Kind, tone: d.tone, x: p.x, y: p.y };
-  }),
-  ...ENTITIES.map((e) => {
-    const p = polar(e.deg, e.r ?? R_ENTITY);
+  {
+    id: "indonesia", label: "اندونزی", kind: "center", etype: "country",
+    origin: "source", tone: "gold", x: CX, y: CY,
+  },
+  ...SPECS.map((s): GNode => {
+    const p = polar(s.deg, s.r);
     return {
-      id: e.id, label: e.label, kind: "entity" as Kind,
-      tone: e.tone ?? "teal", domain: e.domain, x: p.x, y: p.y,
+      id: s.id, label: s.label, kind: s.kind ?? "entity", etype: s.etype,
+      origin: s.origin ?? "source", tone: s.tone ?? "blue",
+      cluster: s.cluster, x: p.x, y: p.y,
     };
   }),
 ];
 
 const EDGES: GEdge[] = [
-  // ایران به دامنه‌ها
-  ...DOMAINS.map((d) => ({ from: "iran", to: d.id, system: "knowledge" as System, strong: true })),
+  // زمینه‌ی ساختاری
+  { from: "region-sea",  to: "indonesia",   system: "knowledge", rel: "شامل",           strong: true },
+  { from: "mission-jkt", to: "indonesia",   system: "knowledge", rel: "نمایندگی در",    strong: true },
 
-  // دامنه به موجودیت
-  { from: "d-countries", to: "e-indonesia", system: "knowledge", strong: true },
-  { from: "d-countries", to: "e-turkey",    system: "knowledge" },
-  { from: "d-countries", to: "e-afg",       system: "knowledge" },
-  { from: "d-topics",    to: "e-farsi",     system: "knowledge", strong: true },
-  { from: "d-topics",    to: "e-culdip",    system: "knowledge" },
-  { from: "d-orgs",      to: "e-unesco",    system: "knowledge" },
-  { from: "d-orgs",      to: "e-diyanet",   system: "knowledge" },
-  { from: "d-people",    to: "e-rayzan",    system: "knowledge" },
-  { from: "d-reports",   to: "e-rep-heri",  system: "knowledge" },
-  { from: "d-reports",   to: "e-rep-afg",   system: "knowledge" },
-  { from: "d-issues",    to: "e-issue-farsi", system: "execution", strong: true },
-  { from: "d-issues",    to: "e-issue-heri",  system: "execution" },
-  { from: "d-decisions", to: "e-dec-chair",   system: "execution" },
-  { from: "d-projects",  to: "e-prj-chair",   system: "execution" },
-  { from: "d-events",    to: "e-ev-week",     system: "knowledge" },
+  // گزارش ← تولیدشده توسط → نمایندگی
+  { from: "rep-farsi", to: "mission-jkt", system: "knowledge", rel: "تولیدشده توسط", strong: true },
+  { from: "rep-univ",  to: "mission-jkt", system: "knowledge", rel: "تولیدشده توسط" },
+  { from: "rep-cult",  to: "mission-jkt", system: "knowledge", rel: "تولیدشده توسط" },
+  { from: "rep-faith", to: "mission-jkt", system: "knowledge", rel: "تولیدشده توسط" },
 
-  // زنجیره‌ی دانش: کشور → موضوع → سازمان/شخص → گزارش → رویداد
-  { from: "e-indonesia", to: "e-farsi",    system: "knowledge", strong: true },
-  { from: "e-farsi",     to: "e-rayzan",   system: "knowledge" },
-  { from: "e-indonesia", to: "e-ev-week",  system: "knowledge" },
-  { from: "e-turkey",    to: "e-diyanet",  system: "knowledge" },
-  { from: "e-turkey",    to: "e-culdip",   system: "knowledge" },
-  { from: "e-culdip",    to: "e-unesco",   system: "knowledge" },
-  { from: "e-rep-heri",  to: "e-unesco",   system: "knowledge" },
-  { from: "e-afg",       to: "e-rep-afg",  system: "knowledge" },
+  // گزارش ← درباره → کشور
+  { from: "rep-farsi", to: "indonesia", system: "knowledge", rel: "درباره", strong: true },
+  { from: "rep-univ",  to: "indonesia", system: "knowledge", rel: "درباره", strong: true },
+  { from: "rep-cult",  to: "indonesia", system: "knowledge", rel: "درباره" },
+  { from: "rep-faith", to: "indonesia", system: "knowledge", rel: "درباره" },
 
-  // زنجیره‌ی اجرا: مسئله → مصوبه → مسئول → پروژه → مانع / نتیجه
-  { from: "e-issue-farsi", to: "e-dec-chair",  system: "execution", strong: true },
-  { from: "e-dec-chair",   to: "e-rayzan",     system: "execution" },
-  { from: "e-dec-chair",   to: "e-prj-chair",  system: "execution", strong: true },
-  { from: "e-prj-chair",   to: "e-risk-staff", system: "execution" },
-  { from: "e-prj-chair",   to: "e-res-three",  system: "execution" },
-  { from: "e-issue-farsi", to: "e-indonesia",  system: "execution" },
-  { from: "e-issue-heri",  to: "e-rep-heri",   system: "execution" },
+  // گزارش ← منتشرشده در → منبع
+  { from: "rep-cult",  to: "src-icro", system: "knowledge", rel: "منتشرشده در" },
+  { from: "rep-faith", to: "src-icro", system: "knowledge", rel: "منتشرشده در" },
+
+  // گزارش ← شامل → موضوع
+  { from: "rep-farsi", to: "top-farsi",  system: "knowledge", rel: "شامل موضوع", strong: true },
+  { from: "rep-univ",  to: "top-univ",   system: "knowledge", rel: "شامل موضوع", strong: true },
+  { from: "rep-univ",  to: "top-farsi",  system: "knowledge", rel: "شامل موضوع" },
+  { from: "rep-cult",  to: "top-culdip", system: "knowledge", rel: "شامل موضوع", strong: true },
+  { from: "rep-faith", to: "top-faith",  system: "knowledge", rel: "شامل موضوع", strong: true },
+  { from: "rep-faith", to: "top-culdip", system: "knowledge", rel: "شامل موضوع" },
+
+  // گزارش ← اشاره به → شخص / سازمان
+  { from: "rep-faith", to: "per-omar",     system: "knowledge", rel: "اشاره به" },
+  { from: "rep-faith", to: "org-religion", system: "knowledge", rel: "اشاره به" },
+  { from: "rep-univ",  to: "org-univ-jkt", system: "knowledge", rel: "اشاره به" },
+  { from: "rep-cult",  to: "org-unesco",   system: "knowledge", rel: "اشاره به" },
+  { from: "rep-farsi", to: "per-rayzan",   system: "knowledge", rel: "اشاره به" },
+
+  // گزارش ← ثبت می‌کند → رویداد
+  { from: "rep-cult",  to: "ev-week",    system: "knowledge", rel: "ثبت می‌کند" },
+  { from: "rep-faith", to: "ev-jakarta", system: "knowledge", rel: "ثبت می‌کند" },
+
+  // پیوند موجودیت‌ها
+  { from: "per-omar",   to: "org-religion", system: "knowledge", rel: "وابسته به" },
+  { from: "top-culdip", to: "org-unesco",   system: "knowledge", rel: "مرتبط با" },
+  { from: "per-rayzan", to: "mission-jkt",  system: "knowledge", rel: "مسئول" },
+
+  // ── لایه‌ی AI: چند گزارش ← نشان می‌دهند → روند ──
+  { from: "rep-farsi", to: "ai-trend-farsi", system: "knowledge", rel: "نشان می‌دهد", strong: true },
+  { from: "rep-univ",  to: "ai-trend-farsi", system: "knowledge", rel: "نشان می‌دهد", strong: true },
+
+  // روند ← ایجاد می‌کند → سیگنال
+  { from: "ai-trend-farsi", to: "ai-sig-univ", system: "knowledge", rel: "ایجاد می‌کند", strong: true },
+  { from: "rep-univ",       to: "ai-sig-univ", system: "knowledge", rel: "پشتیبانی می‌کند" },
+
+  // سیگنال ← نشان‌دهنده → فرصت / ریسک
+  { from: "ai-sig-univ",    to: "ai-opp-univ",   system: "knowledge", rel: "نشان‌دهنده", strong: true },
+  { from: "ai-trend-farsi", to: "ai-risk-cover", system: "knowledge", rel: "نشان‌دهنده", strong: true },
+
+  // بینش ← استخراج‌شده از → چند گزارش
+  { from: "rep-cult",  to: "ai-ins-partner", system: "knowledge", rel: "استخراج‌شده از" },
+  { from: "rep-faith", to: "ai-ins-partner", system: "knowledge", rel: "استخراج‌شده از" },
+  { from: "ai-ins-partner", to: "ai-risk-cover", system: "knowledge", rel: "تقویت می‌کند" },
+
+  // اتصال هوش به موضوع
+  { from: "ai-opp-univ", to: "top-univ", system: "knowledge", rel: "درباره" },
+
+  // ── زنجیره‌ی اجرا ──
+  { from: "ai-risk-cover", to: "ex-issue", system: "execution", rel: "منجر می‌شود به", strong: true },
+  { from: "ex-issue", to: "ex-dec", system: "execution", rel: "تصمیم",  strong: true },
+  { from: "ex-dec",   to: "ex-prj", system: "execution", rel: "اقدام",  strong: true },
+  { from: "ex-prj",   to: "ex-res", system: "execution", rel: "نتیجه" },
+  { from: "ex-prj",   to: "per-rayzan", system: "execution", rel: "مسئول" },
 ];
 
+/** گزارش‌ها بزرگ‌تر از موجودیت‌های استخراج‌شده دیده می‌شوند */
 function radiusOf(n: GNode) {
-  return n.kind === "center" ? 34 : n.kind === "domain" ? 15 : 9;
+  return n.kind === "center" ? 34 : n.kind === "report" ? 13 : n.kind === "primary" ? 15 : 8.5;
 }
 
 /** کمان ملایم بین دو گره تا خطوط روی هم نیفتند */
@@ -173,54 +248,108 @@ function curve(a: GNode, b: GNode) {
   return `M ${a.x} ${a.y} Q ${mx + nx * bow} ${my + ny * bow} ${b.x} ${b.y}`;
 }
 
+/** خوشه‌های قابل فیلتر — جای دامنه‌های قبلی */
+const CLUSTERS: Array<{ id: string; label: string; tone: Tone }> = [
+  { id: "گزارش‌ها",     label: "گزارش‌ها",      tone: "teal" },
+  { id: "موضوعات",      label: "موضوعات",       tone: "blue" },
+  { id: "اشخاص",        label: "اشخاص",         tone: "blue" },
+  { id: "سازمان‌ها",    label: "سازمان‌ها",     tone: "blue" },
+  { id: "رویدادها",     label: "رویدادها",      tone: "blue" },
+  { id: "هوش استخراجی", label: "هوش استخراجی",  tone: "ai" },
+  { id: "اجرا",         label: "زنجیره اجرا",   tone: "gold" },
+];
+
 // ─── جزئیات پنل بازرسی ────────────────────────────────────────────────────────
-const INSPECTOR: Record<string, {
-  type: string; status: string; priority: string;
+type InspectorData = {
+  status: string;
+  priority: string;
   stats: Array<[string, string]>;
-  relations: Array<{ label: string; kind: string; tone: Tone }>;
   ai: { summary: string; opportunity: string; risk: string; action: string };
-}> = {
-  "e-issue-farsi": {
-    type: "مسئله راهبردی",
-    status: "فعال",
-    priority: "بالا",
+};
+
+/**
+ * محتوای بازرس بر اساس نوع موجودیت فرق می‌کند — کشور، گزارش، موضوع و سیگنال
+ * هرکدام سؤال متفاوتی در ذهن کاربر می‌سازند.
+ */
+const INSPECTOR: Record<string, InspectorData> = {
+  indonesia: {
+    status: "تحت رصد", priority: "بالا",
     stats: [
-      ["گزارش مرتبط", "۲۸"],
-      ["فرد کلیدی", "۱۷"],
-      ["سازمان مرتبط", "۹"],
-      ["تصمیم باز", "۴"],
-      ["پیشرفت اجرا", "۶۸٪"],
-      ["ریسک مهم", "۳"],
-    ],
-    relations: [
-      { label: "اندونزی",               kind: "کشور",   tone: "blue" },
-      { label: "مصوبه کرسی زبان فارسی", kind: "مصوبه",  tone: "gold" },
-      { label: "کرسی‌های زبان فارسی",   kind: "پروژه",  tone: "blue" },
-      { label: "رایزن فرهنگی جاکارتا",  kind: "مسئول",  tone: "teal" },
-      { label: "کمبود استاد اعزامی",    kind: "مانع",   tone: "risk" },
-      { label: "راه‌اندازی ۳ کرسی",     kind: "نتیجه",  tone: "done" },
+      ["گزارش ثبت‌شده", "۴۲"], ["موضوع فعال", "۹"],
+      ["شخص کلیدی", "۱۷"], ["سازمان مرتبط", "۱۱"],
+      ["سیگنال باز", "۳"], ["ریسک فعال", "۱"],
     ],
     ai: {
-      summary: "کرسی‌های زبان فارسی در سه دانشگاه اندونزی فعال شده‌اند و پوشش رسانه‌ای مثبت داشته‌اند، اما تأمین استاد اعزامی از ابتدای دوره عقب است.",
-      opportunity: "علاقه‌ی دانشگاه‌های جاوه‌ی شرقی به گسترش دوره‌ها فرصت افزودن دو کرسی دیگر بدون هزینه‌ی زیرساخت جدید را فراهم می‌کند.",
-      risk: "بدون جذب استاد تا پایان فصل، دوره‌های ترم آینده تعطیل می‌شوند و پیشرفت ۶۸٪ برگشت‌پذیر است.",
-      action: "تخصیص دو استاد از ظرفیت داخلی و بازبینی مصوبه برای مجوز جذب محلی.",
+      summary: "چهار گزارش نمایندگی جاکارتا در شش ماه گذشته روی سه محور متمرکزند: زبان فارسی، همکاری دانشگاهی و گفت‌وگوی ادیان. تراکم ارجاع به نهادهای دانشگاهی نسبت به دوره‌ی قبل بیشتر شده.",
+      opportunity: "هم‌زمانی رشد تقاضای زبان فارسی با گشایش دانشگاهی، پنجره‌ی کوتاهی برای تثبیت همکاری رسمی می‌سازد.",
+      risk: "پوشش آموزشی به یک شریک محلی وابسته است که فعالیتش در دو گزارش اخیر کاهش نشان می‌دهد.",
+      action: "تدوین گزارش تجمیعی از چهار سند و طرح آن در جلسه‌ی منطقه‌ای جنوب شرق آسیا.",
+    },
+  },
+  "rep-farsi": {
+    status: "تأییدشده", priority: "بالا",
+    stats: [
+      ["موضوع استخراجی", "۳"], ["شخص استخراجی", "۵"],
+      ["سازمان استخراجی", "۴"], ["رویداد ثبت‌شده", "۲"],
+      ["سیگنال استخراجی", "۲"], ["سطح اطمینان", "۹۱٪"],
+    ],
+    ai: {
+      summary: "گزارش وضعیت زبان فارسی، رشد ثبت‌نام دوره‌های زبان در سه دانشگاه جاکارتا را ثبت کرده و کمبود مدرس بومی را عامل محدودکننده معرفی می‌کند.",
+      opportunity: "دو دانشگاه آمادگی میزبانی کرسی رسمی را اعلام کرده‌اند.",
+      risk: "بدون تأمین مدرس، رشد ثبت‌نام به ظرفیت واقعی تبدیل نمی‌شود.",
+      action: "تطبیق این گزارش با گزارش دانشگاه‌ها برای برآورد شکاف مدرس.",
+    },
+  },
+  "top-farsi": {
+    status: "فعال", priority: "بالا",
+    stats: [
+      ["کشور مرتبط", "۶"], ["گزارش مرتبط", "۲۸"],
+      ["شخص", "۱۲"], ["سازمان", "۷"],
+      ["رویداد", "۵"], ["سیگنال مرتبط", "۲"],
+    ],
+    ai: {
+      summary: "زبان فارسی در گزارش‌های اندونزی، تاجیکستان و پاکستان به‌عنوان محور مشترک دیپلماسی فرهنگی تکرار می‌شود؛ روند دوساله صعودی است.",
+      opportunity: "الگوی موفق جاکارتا قابل تکرار در دو کشور دیگر منطقه است.",
+      risk: "تمرکز بر یک موضوع، پوشش سایر محورهای فرهنگی را کم‌رنگ کرده.",
+      action: "مقایسه‌ی روند این موضوع میان سه کشور در یک بینش تجمیعی.",
+    },
+  },
+  "ai-sig-univ": {
+    status: "فعال", priority: "متوسط",
+    stats: [
+      ["اهمیت", "متوسط"], ["اطمینان", "۷۶٪"],
+      ["کشور", "۱"], ["گزارش پشتیبان", "۲"],
+      ["تغییر مشاهده‌شده", "‎+۳۱٪"], ["پنجره زمانی", "۶ ماه"],
+    ],
+    ai: {
+      summary: "دو گزارش مستقل، افزایش تفاهم‌نامه و بازدید دانشگاهی را ثبت کرده‌اند؛ الگو در هر دو یکسان است و تصادفی به نظر نمی‌رسد.",
+      opportunity: "زمینه برای پیشنهاد همکاری رسمی دانشگاهی فراهم است.",
+      risk: "اگر ظرف دو فصل اقدامی نشود، ابتکار به شریک رقیب منتقل می‌شود.",
+      action: "تهیه‌ی پیش‌نویس تفاهم‌نامه‌ی دانشگاهی بر پایه‌ی دو گزارش پشتیبان.",
+    },
+  },
+  "ai-risk-cover": {
+    status: "نیازمند توجه", priority: "بالا",
+    stats: [
+      ["اهمیت", "بالا"], ["اطمینان", "۸۲٪"],
+      ["گزارش پشتیبان", "۳"], ["کشور", "۱"],
+      ["روند مرتبط", "۱"], ["پنجره زمانی", "۳ ماه"],
+    ],
+    ai: {
+      summary: "کاهش فعالیت شریک محلی هم‌زمان با رشد تقاضا رخ داده؛ این ترکیب یعنی شکاف پوشش آموزشی در حال باز شدن است.",
+      opportunity: "—",
+      risk: "دوره‌های ترم آینده بدون جایگزین شریک، تعطیل می‌شوند.",
+      action: "شناسایی شریک جایگزین و طرح مسئله در زنجیره‌ی اجرا.",
     },
   },
 };
 
-const DEFAULT_INSPECTOR = {
-  type: "موجودیت",
-  status: "فعال",
-  priority: "متوسط",
-  stats: [["روابط مستقیم", "—"]] as Array<[string, string]>,
-  relations: [] as Array<{ label: string; kind: string; tone: Tone }>,
-  ai: {
-    summary: "برای این موجودیت هنوز تحلیل ساخته نشده است.",
-    opportunity: "—",
-    risk: "—",
-    action: "—",
-  },
+/** وقتی موجودیت ورودی اختصاصی ندارد، بازرس از خود ساختار گراف پر می‌شود */
+const GENERIC_AI: InspectorData["ai"] = {
+  summary: "برای این موجودیت هنوز تحلیل تجمیعی ساخته نشده است؛ روابط زیر از گراف استخراج شده‌اند.",
+  opportunity: "—",
+  risk: "—",
+  action: "—",
 };
 
 // ─── کامپوننت ─────────────────────────────────────────────────────────────────
@@ -230,8 +359,10 @@ function initialPositions(): Record<string, { x: number; y: number }> {
 }
 
 export default function IntelligenceGraph() {
-  const [selected, setSelected] = useState<string | null>("e-issue-farsi");
-  const [views, setViews] = useState<Record<System, boolean>>({ knowledge: true, execution: true });
+  // پیش‌فرض روی خود کشور است تا نمای اول «دانش و رصد» را روایت کند، نه یک مسئله
+  const [selected, setSelected] = useState<string | null>("indonesia");
+  const [views, setViews] = // زنجیره‌ی اجرا پیش‌فرض خاموش است تا گراف پیش‌فرض را از رصد منحرف نکند
+    useState<Record<System, boolean>>({ knowledge: true, execution: false });
   const [zoom, setZoom] = useState(1);
   const [query, setQuery] = useState("");
   const [showFilter, setShowFilter] = useState(false);
@@ -373,10 +504,35 @@ export default function IntelligenceGraph() {
     return () => window.removeEventListener("keydown", onKey);
   }, [query]);
 
-  const nodeHidden = (n: GNode) => n.domain !== undefined && hidden.has(n.domain);
+  const nodeHidden = (n: GNode) => {
+    if (n.cluster && hidden.has(n.cluster)) return true;
+    // زنجیره‌ی اجرا فقط در نمای «مسئله تا اجرا» دیده می‌شود
+    if (n.cluster === "اجرا" && !views.execution) return true;
+    return false;
+  };
 
   const sel = selected ? byId[selected] : null;
-  const info = (selected && INSPECTOR[selected]) || DEFAULT_INSPECTOR;
+
+  /**
+   * روابط بازرس از خود گراف ساخته می‌شوند، نه از جدول جداگانه — وگرنه با هر
+   * تغییر یال‌ها، پنل بی‌صدا از واقعیت گراف عقب می‌افتد.
+   */
+  const relations = useMemo(() => {
+    if (!selected) return [];
+    const out: Array<{ id: string; label: string; kind: string; tone: Tone }> = [];
+    for (const e of EDGES) {
+      if (!views[e.system]) continue;
+      const other = e.from === selected ? e.to : e.to === selected ? e.from : null;
+      if (!other) continue;
+      const n = byId[other];
+      if (!n || nodeHidden(n)) continue;
+      out.push({ id: other, label: n.label, kind: e.rel, tone: n.tone });
+    }
+    return out.slice(0, 8);
+  }, [selected, views, byId, hidden]);
+
+  const info = (selected && INSPECTOR[selected]) || null;
+  const selType = sel ? typeLabel[sel.etype] : "";
 
   const ctlStyle: React.CSSProperties = {
     background: "transparent", border: "none", color: T.t2,
@@ -486,12 +642,23 @@ export default function IntelligenceGraph() {
                     <>
                       {/* هاله‌ی ملایم */}
                       <circle cx={n.x} cy={n.y} r={r * 2.6} fill={c} opacity={dim ? 0 : 0.07} />
+                      {/*
+                        هوش استخراجی با حلقه‌ی نقطه‌چین از دانشِ منبع جدا می‌شود؛
+                        رنگ به‌تنهایی کافی نیست چون رنگ‌ها معنای دیگری هم دارند.
+                      */}
+                      {n.origin === "ai" && (
+                        <circle
+                          cx={n.x} cy={n.y} r={r + 5} fill="none"
+                          stroke={c} strokeWidth={0.8} strokeDasharray="2 3"
+                          opacity={dim ? 0.25 : 0.7}
+                        />
+                      )}
                       <circle
                         cx={n.x} cy={n.y} r={r}
-                        fill={n.kind === "domain" ? c : T.panelSolid}
+                        fill={n.kind === "primary" ? c : T.panelSolid}
                         stroke={c}
-                        strokeWidth={n.kind === "domain" ? 0 : 1.4}
-                        fillOpacity={n.kind === "domain" ? 0.85 : 1}
+                        strokeWidth={n.kind === "primary" ? 0 : n.kind === "report" ? 2 : 1.4}
+                        fillOpacity={n.kind === "primary" ? 0.85 : 1}
                       />
                     </>
                   )}
@@ -507,8 +674,8 @@ export default function IntelligenceGraph() {
                     textAnchor={labelOnLeft ? "end" : "start"}
                     fill={isSel ? T.goldHi : n.kind === "entity" ? T.t2 : T.t1}
                     style={{
-                      fontSize: n.kind === "center" ? 17 : n.kind === "domain" ? 12.5 : 10.5,
-                      fontWeight: n.kind === "center" ? 700 : n.kind === "domain" ? 600 : 400,
+                      fontSize: n.kind === "center" ? 17 : n.kind === "primary" ? 12 : n.kind === "report" ? 11 : 10,
+                      fontWeight: n.kind === "center" ? 700 : n.kind === "report" ? 600 : n.kind === "primary" ? 600 : 400,
                       fontFamily: "YekanBakh, sans-serif",
                       pointerEvents: "none",
                     }}
@@ -554,7 +721,7 @@ export default function IntelligenceGraph() {
           >مرکز گراف</button>
 
           <span style={{ width: 1, height: 16, background: T.hair }} />
-          {([["knowledge", "دانش"], ["execution", "مسئله تا اجرا"]] as Array<[System, string]>).map(([k, label]) => {
+          {([["knowledge", "دانش و رصد"], ["execution", "مسئله تا اجرا"]] as Array<[System, string]>).map(([k, label]) => {
             const on = views[k];
             return (
               <button key={k}
@@ -580,8 +747,8 @@ export default function IntelligenceGraph() {
             position: "absolute", top: 64, left: "50%", transform: "translateX(-50%)",
             padding: "10px 12px", display: "flex", flexDirection: "column", gap: 3, minWidth: 168,
           }}>
-            <p style={{ fontSize: 9.5, color: T.t3, margin: "0 0 4px" }}>نمایش دامنه‌ها</p>
-            {DOMAINS.map((d) => {
+            <p style={{ fontSize: 9.5, color: T.t3, margin: "0 0 4px" }}>نمایش خوشه‌ها</p>
+            {CLUSTERS.map((d) => {
               const on = !hidden.has(d.id);
               return (
                 <button key={d.id}
@@ -616,14 +783,20 @@ export default function IntelligenceGraph() {
           display: "flex", flexDirection: "column", gap: 6,
         }}>
           {([
-            ["دانش و داده", T.mint],
-            ["موجودیت منتخب", T.gold],
-            ["کشور و پروژه", T.sky],
-            ["ریسک و مانع", T.bad],
-            ["نتیجه محقق‌شده", T.ok],
-          ] as Array<[string, string]>).map(([label, c]) => (
+            ["گزارش و منبع",       T.mint,     false],
+            ["موجودیت استخراجی",   T.sky,      false],
+            ["هوش استخراجی AI",    T.lavender, true],
+            ["ریسک",               T.bad,      true],
+            ["فرصت و نتیجه",       T.ok,       true],
+            ["موجودیت منتخب",      T.gold,     false],
+          ] as Array<[string, string, boolean]>).map(([label, c, dashed]) => (
             <span key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: T.t2 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: c, flexShrink: 0 }} />
+              {/* حلقه‌ی نقطه‌چین همان نشانه‌ی «استخراج AI» روی خود گراف است */}
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                background: dashed ? "transparent" : c,
+                border: dashed ? `1px dashed ${c}` : "none",
+              }} />
               {label}
             </span>
           ))}
@@ -640,7 +813,7 @@ export default function IntelligenceGraph() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 3px" }}>
               <span style={{ fontSize: 9, color: T.t3 }}>زمینه:</span>
               <span style={{ fontSize: 10, color: T.gold, fontWeight: 600 }}>
-                {sel.domain ? `${DOMAINS.find((d) => d.id === sel.domain)?.label} / ` : ""}{sel.label}
+                {sel.id === "indonesia" ? "" : "اندونزی / "}{sel.label}
               </span>
             </div>
           )}
@@ -683,14 +856,20 @@ export default function IntelligenceGraph() {
               }}>×</button>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
-              <Tag text={info.type} tone={T.gold} />
-              <Tag text={info.status} tone={T.ok} />
-              <Tag text={`اولویت ${info.priority}`} tone={T.warn} />
+              <Tag text={selType} tone={T.gold} />
+              {info && <Tag text={info.status} tone={T.ok} />}
+              {info && <Tag text={`اولویت ${info.priority}`} tone={T.warn} />}
+              {/* منشأ، صریح: کاربر باید بداند این داده‌ی منبع است یا استنتاج AI */}
+              <Tag
+                text={sel.origin === "ai" ? "استخراج AI" : "دانش منبع"}
+                tone={sel.origin === "ai" ? T.lavender : T.mint}
+              />
             </div>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 18 }}>
             {/* شاخص‌ها */}
+            {info && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
               {info.stats.map(([label, v]) => (
                 <div key={label} style={{
@@ -702,18 +881,24 @@ export default function IntelligenceGraph() {
                 </div>
               ))}
             </div>
+            )}
 
-            {/* روابط کلیدی */}
-            {info.relations.length > 0 && (
+            {/* روابط کلیدی — کلیک، همان گره را در گراف انتخاب می‌کند */}
+            {relations.length > 0 && (
               <div>
                 <p style={{ fontSize: 11, color: T.t1, fontWeight: 600, margin: "0 0 9px" }}>روابط کلیدی</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {info.relations.map((r) => (
-                    <div key={r.label} style={{
+                  {relations.map((r) => (
+                    <button key={r.id} onClick={() => setSelected(r.id)} style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "7px 10px", borderRadius: T.rCtl,
+                      padding: "7px 10px", borderRadius: T.rCtl, width: "100%",
                       background: "rgba(0,0,0,0.18)", border: `1px solid ${T.hair}`,
-                    }}>
+                      cursor: "pointer", fontFamily: "YekanBakh, sans-serif",
+                      transition: "border-color 0.15s",
+                    }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.goldLine; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.hair; }}
+                    >
                       <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                         <span style={{
                           width: 5, height: 5, borderRadius: "50%",
@@ -725,7 +910,7 @@ export default function IntelligenceGraph() {
                         }}>{r.label}</span>
                       </span>
                       <span style={{ fontSize: 9, color: T.t3, flexShrink: 0 }}>{r.kind}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -744,10 +929,17 @@ export default function IntelligenceGraph() {
                 تحلیل هوشمند
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                <Insight label="خلاصه"          text={info.ai.summary}     tone={T.t2} />
-                <Insight label="فرصت"           text={info.ai.opportunity} tone={T.ok} />
-                <Insight label="ریسک"           text={info.ai.risk}        tone={T.bad} />
-                <Insight label="اقدام پیشنهادی" text={info.ai.action}      tone={T.gold} />
+                {(() => {
+                  const ai = info?.ai ?? GENERIC_AI;
+                  return (
+                    <>
+                      <Insight label="خلاصه"          text={ai.summary}     tone={T.t2} />
+                      <Insight label="فرصت"           text={ai.opportunity} tone={T.ok} />
+                      <Insight label="ریسک"           text={ai.risk}        tone={T.bad} />
+                      <Insight label="اقدام پیشنهادی" text={ai.action}      tone={T.gold} />
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
