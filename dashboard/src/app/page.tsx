@@ -155,11 +155,12 @@ function LeaderRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 function Sidebar({ active, setActive, counts }: {
   active: string; setActive: (v: string) => void; counts: { vault: number; qdrant: number };
 }) {
+  const [logoOk, setLogoOk] = useState(true);
   const nav = [
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined as number | undefined },
-    { id: "vault",     icon: "◇", label: "Vault",           badge: counts.vault },
+    { id: "vault",     icon: "◇", label: "یادداشت‌ها",      badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",  badge: undefined },
-    { id: "documents", icon: "▦", label: "اسناد Qdrant",    badge: counts.qdrant },
+    { id: "documents", icon: "▦", label: "اسناد نمایه‌شده", badge: counts.qdrant },
   ];
 
   return (
@@ -172,15 +173,26 @@ function Sidebar({ active, setActive, counts }: {
       {/* Brand */}
       <div style={{ padding: "18px 16px 16px", borderBottom: `1px solid ${T.hair}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-            border: `1px solid ${T.goldLine}`, background: T.goldDim,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, color: T.gold,
-          }}>✦</div>
+          {/*
+            نشان سازمان از public/logo.png خوانده می‌شود. تا وقتی فایل نباشد،
+            نماد پیش‌فرض نمایش داده می‌شود تا سایدبار خراب دیده نشود.
+          */}
+          {logoOk ? (
+            <img src="/logo.png" alt="نشان سازمان فرهنگ و ارتباطات اسلامی"
+              onError={() => setLogoOk(false)}
+              style={{ width: 34, height: 34, flexShrink: 0, objectFit: "contain", borderRadius: 7 }}
+            />
+          ) : (
+            <div style={{
+              width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+              border: `1px solid ${T.goldLine}`, background: T.goldDim,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, color: T.gold,
+            }}>✦</div>
+          )}
           <div>
-            <p style={{ color: T.t1, fontWeight: 700, fontSize: 12.5, lineHeight: 1.15, margin: 0 }}>هوش سازمانی</p>
-            <p style={{ color: T.t3, fontSize: 9.5, margin: "3px 0 0", letterSpacing: "0.03em" }}>Second Brain Platform</p>
+            <p style={{ color: T.t1, fontWeight: 700, fontSize: 13, lineHeight: 1.15, margin: 0 }}>مغز دوم</p>
+            <p style={{ color: T.t3, fontSize: 9, margin: "4px 0 0", lineHeight: 1.5 }}>سازمان فرهنگ<br />و ارتباطات اسلامی</p>
           </div>
         </div>
       </div>
@@ -218,12 +230,6 @@ function Sidebar({ active, setActive, counts }: {
         })}
       </nav>
 
-      {/* Stack footer */}
-      <div style={{ padding: "13px 16px", borderTop: `1px solid ${T.hair}` }}>
-        <p style={{ color: T.t3, fontSize: 9, margin: 0, lineHeight: 1.9, letterSpacing: "0.02em" }}>
-          bge-m3 · Qdrant 1.13<br />qwen3:8b · Ollama local
-        </p>
-      </div>
     </aside>
   );
 }
@@ -248,10 +254,23 @@ function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // مقاله‌ای که کاربر از روی چیپ منبع باز کرده
+  const [article, setArticle] = useState<{ path: string; title: string; text: string | null } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const onOpenSource = async (path: string, title: string) => {
+    setArticle({ path, title, text: null });
+    try {
+      const r = await fetch(`/api/vault/${encodeURIComponent(path)}`);
+      const d = await r.json();
+      setArticle({ path, title, text: d.content ?? "متن این مقاله خوانده نشد." });
+    } catch {
+      setArticle({ path, title, text: "متن این مقاله خوانده نشد." });
+    }
+  };
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -289,7 +308,8 @@ function ChatPanel() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "26px 34px", display: "flex", flexDirection: "column", gap: 20 }}>
         {messages.length === 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
@@ -360,20 +380,28 @@ function ChatPanel() {
                     : <RichText text={m.content} />}
                 </div>
 
-                {/* Source chips — مثل نودهای منبع پلتفرم */}
+                {/* چیپ منبع — کلیک متن کامل مقاله را باز می‌کند */}
                 {m.sources && m.sources.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                     {m.sources.map((s, si) => (
-                      <span key={si} style={{
-                        fontSize: 9.5, fontWeight: 500, color: T.t2,
-                        background: T.panel, border: `1px solid ${T.hair}`,
-                        borderRadius: T.rPill, padding: "3px 9px",
-                        display: "flex", alignItems: "center", gap: 6,
-                      }}>
+                      <button key={si} onClick={() => s.path && onOpenSource(s.path, s.title)}
+                        disabled={!s.path}
+                        title={s.path ? "نمایش متن مقاله" : undefined}
+                        style={{
+                          fontSize: 9.5, fontWeight: 500, color: T.t2,
+                          background: T.panel, border: `1px solid ${T.hair}`,
+                          borderRadius: T.rPill, padding: "3px 9px",
+                          display: "flex", alignItems: "center", gap: 6,
+                          cursor: s.path ? "pointer" : "default",
+                          fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s",
+                        }}
+                        onMouseEnter={e => { if (s.path) { e.currentTarget.style.borderColor = T.goldLine; e.currentTarget.style.color = T.goldHi; } }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = T.hair; e.currentTarget.style.color = T.t2; }}
+                      >
                         <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.mint, flexShrink: 0 }} />
                         <span style={{ maxWidth: 128, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
                         <span style={{ fontFamily: "monospace", color: T.gold }}>{s.score?.toFixed(2)}</span>
-                      </span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -409,17 +437,45 @@ function ChatPanel() {
                 : "➤"}
             </button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px 2px", borderTop: `1px solid ${T.hair}`, marginTop: 8 }}>
-            <span style={{ fontSize: 9.5, color: T.t3, letterSpacing: "0.02em" }}>bge-m3 → Qdrant → qwen3:8b</span>
-            {messages.length > 0 && (
+          {messages.length > 0 && (
+            <div style={{ display: "flex", justifyContent: "flex-start", padding: "8px 12px 2px", borderTop: `1px solid ${T.hair}`, marginTop: 8 }}>
               <button onClick={() => setMessages([])} style={{
-                background: "none", border: "none", color: T.t3, fontSize: 9.5, cursor: "pointer",
+                background: "none", border: "none", color: T.t3, fontSize: 10, cursor: "pointer",
                 padding: 0, fontFamily: "YekanBakh, sans-serif",
               }}>مکالمه جدید +</button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+
+    {/* پنل مقاله — با کلیک روی چیپ منبع باز می‌شود */}
+    {article && (
+      <div className="panel anim-fadein" style={{
+        width: 390, flexShrink: 0, margin: "0 0 22px 26px",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+      }}>
+        <div style={{ padding: "13px 16px", borderBottom: `1px solid ${T.hair}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 12.5, fontWeight: 600, color: T.t1, margin: 0 }}>{article.title}</p>
+            <p style={{ fontSize: 9.5, color: T.t3, margin: "4px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{article.path}</p>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <button onClick={() => openInObsidian(article.path)} style={{
+              fontSize: 10, color: T.gold, background: T.goldDim,
+              border: `1px solid ${T.goldLine}`, borderRadius: 7, padding: "4px 9px",
+              cursor: "pointer", fontFamily: "YekanBakh, sans-serif",
+            }}>Obsidian ↗</button>
+            <button onClick={() => setArticle(null)} style={{ background: "none", border: "none", color: T.t3, cursor: "pointer", fontSize: 16, padding: "0 3px" }}>×</button>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+          {article.text === null
+            ? <p className="anim-pulse" style={{ color: T.t3, textAlign: "center", paddingTop: 28, fontSize: 11.5 }}>در حال بارگذاری…</p>
+            : <pre style={{ fontSize: 11, whiteSpace: "pre-wrap", fontFamily: "YekanBakh, sans-serif", color: T.t2, lineHeight: 1.95, margin: 0 }}>{article.text}</pre>}
+        </div>
+      </div>
+    )}
     </div>
   );
 }
@@ -783,10 +839,10 @@ export default function Dashboard() {
   }, []);
 
   const heads: Record<string, { eyebrow: string; title: string }> = {
-    chat:      { eyebrow: "RAG PIPELINE",     title: "دستیار هوشمند" },
-    vault:     { eyebrow: "OBSIDIAN VAULT",   title: "مرورگر یادداشت‌ها" },
-    search:    { eyebrow: "SEMANTIC SEARCH",  title: "جستجوی معنایی" },
-    documents: { eyebrow: "QDRANT COLLECTION", title: "اسناد بردارشده" },
+    chat:      { eyebrow: "پرسش از پایگاه دانش", title: "دستیار هوشمند" },
+    vault:     { eyebrow: "دفترچه یادداشت",      title: "مرورگر یادداشت‌ها" },
+    search:    { eyebrow: "جستجو در متن اسناد",  title: "جستجوی معنایی" },
+    documents: { eyebrow: "نمایه‌ی جستجو",       title: "اسناد نمایه‌شده" },
   };
 
   const indexed = stats?.total_documents ?? 0;
@@ -833,7 +889,7 @@ export default function Dashboard() {
               border: `1px solid ${T.ok}33`, borderRadius: T.rPill, padding: "4px 11px",
             }}>
               <span className="anim-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: T.ok, display: "inline-block" }} />
-              Active
+              فعال
             </span>
             <Pill label="محیط توسعه" tone={T.warn} />
           </div>
@@ -842,10 +898,10 @@ export default function Dashboard() {
         {/* Metric strip */}
         {(active === "chat" || active === "documents") && (
           <div style={{ padding: "0 26px 4px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, flexShrink: 0 }}>
-            <Metric label="یادداشت Obsidian"  value={loading ? "—" : vaultTotal} unit="note"  tone={T.rose} />
-            <Metric label="chunk قابل جستجو"  value={loading ? "—" : indexed}    unit="chunk" tone={T.mint} />
-            <Metric label="سند ایندکس‌شده"    value={loading ? "—" : (indexedDocs ?? "—")} unit="doc" tone={T.lavender} />
-            <Metric label="سیگنال اجتماعی"    value={loading ? "—" : orgSigs}    unit="sig"   tone={T.gold} />
+            <Metric label="یادداشت‌ها"        value={loading ? "—" : vaultTotal} unit="یادداشت" tone={T.rose} />
+            <Metric label="قطعه‌ی قابل جستجو" value={loading ? "—" : indexed}    unit="قطعه"   tone={T.mint} />
+            <Metric label="سند نمایه‌شده"     value={loading ? "—" : (indexedDocs ?? "—")} unit="سند" tone={T.lavender} />
+            <Metric label="سیگنال اجتماعی"    value={loading ? "—" : orgSigs}    unit="سیگنال" tone={T.gold} />
           </div>
         )}
 
