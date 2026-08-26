@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
+import InternationalDashboard from "@/components/InternationalDashboard";
 
 const VAULT_NAME = "Cultural Intelligence Hub";
 
@@ -132,7 +133,8 @@ function Sidebar({ active, setActive, counts }: {
 }) {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
-    { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined as number | undefined },
+    { id: "world",     icon: "◍", label: "داشبورد بین‌الملل", badge: undefined as number | undefined },
+    { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined },
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",     badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",      badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",  badge: undefined },
@@ -815,6 +817,7 @@ export default function Dashboard() {
   }, []);
 
   const heads: Record<string, { eyebrow: string; title: string }> = {
+    world:     { eyebrow: "رصد چشم‌انداز بین‌الملل", title: "داشبورد بین‌الملل" },
     chat:      { eyebrow: "پرسش از پایگاه دانش", title: "دستیار هوشمند" },
     graph:     { eyebrow: "شبکه‌ی روابط سازمانی", title: "گراف هوشمند سازمانی" },
     vault:     { eyebrow: "دفترچه یادداشت",      title: "مرورگر یادداشت‌ها" },
@@ -889,8 +892,9 @@ export default function Dashboard() {
           // پنل‌های بلند (مثل بازرس گراف) کل صفحه را از ویوپورت بیرون می‌برند.
           minHeight: 0,
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
-          padding: active === "chat" ? "12px 0 0" : active === "graph" ? 0 : "14px 26px 22px",
+          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world") ? 0 : "14px 26px 22px",
         }}>
+          {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} />}
           {active === "chat"      && <ChatPanel />}
           {active === "graph"     && <IntelligenceGraph />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}

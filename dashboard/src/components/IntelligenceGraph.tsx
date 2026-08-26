@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { T } from "@/lib/theme";
+import EntityIntelCard from "@/components/EntityIntelCard";
+import type { IntelType } from "@/lib/intel";
 
 /**
  * گراف هوشمند سازمانی — فضای کاوش روابط در مغز دوم.
@@ -248,6 +250,21 @@ function curve(a: GNode, b: GNode) {
   return `M ${a.x} ${a.y} Q ${mx + nx * bow} ${my + ny * bow} ${b.x} ${b.y}`;
 }
 
+/**
+ * نگاشت نوع گراف به نوع کارت هوشمندی.
+ *
+ * انواع زنجیره‌ی اجرا (مسئله، تصمیم، اقدام…) اینجا نیستند چون سنجه‌ی گیج
+ * برایشان تعریف نشده؛ به‌جای ساختن عدد بی‌پشتوانه، کارت برایشان باز نمی‌شود.
+ */
+function intelTypeOf(e: EType): IntelType | null {
+  const ok: IntelType[] = [
+    "country", "region", "topic", "report", "person", "org",
+    "event", "signal", "risk", "opportunity", "mission", "source",
+    "trend", "insight",
+  ];
+  return (ok as string[]).includes(e) ? (e as IntelType) : null;
+}
+
 /** خوشه‌های قابل فیلتر — جای دامنه‌های قبلی */
 const CLUSTERS: Array<{ id: string; label: string; tone: Tone }> = [
   { id: "گزارش‌ها",     label: "گزارش‌ها",      tone: "teal" },
@@ -374,6 +391,8 @@ export default function IntelligenceGraph() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   /** گره زیر نشانگر — روابطش موقتاً روشن می‌شود */
   const [hover, setHover] = useState<string | null>(null);
+  /** کارت هوشمندی موجودیت روی بوم باز می‌شود */
+  const [cardOpen, setCardOpen] = useState(false);
 
   const zoomRef = useRef<SVGGElement>(null);
   /**
@@ -425,7 +444,7 @@ export default function IntelligenceGraph() {
     const d = drag.current;
     drag.current = null;
     // کشیدن نباید انتخاب را عوض کند؛ فقط کلیکِ بدون حرکت انتخاب می‌کند
-    if (d && !d.moved) setSelected((s) => (s === d.id ? null : d.id));
+    if (d && !d.moved) { setCardOpen(false); setSelected((s) => (s === d.id ? null : d.id)); }
   };
 
   /** کشیدن فضای خالی = جابه‌جایی بوم */
@@ -945,12 +964,42 @@ export default function IntelligenceGraph() {
           </div>
 
           <div style={{ padding: 12, borderTop: `1px solid ${T.hair}` }}>
-            <button style={{
-              width: "100%", background: T.goldDim, border: `1px solid ${T.goldLine}`,
-              color: T.gold, borderRadius: T.rCtl, padding: "9px 0",
-              fontSize: 11.5, fontWeight: 600, cursor: "pointer",
-              fontFamily: "YekanBakh, sans-serif",
-            }}>مشاهده پرونده کامل</button>
+            <button
+              onClick={() => setCardOpen(true)}
+              disabled={!intelTypeOf(sel.etype)}
+              title={intelTypeOf(sel.etype) ? undefined : "برای این نوع، سنجه‌ی هوشمندی تعریف نشده است"}
+              style={{
+                width: "100%", background: T.goldDim, border: `1px solid ${T.goldLine}`,
+                color: T.gold, borderRadius: T.rCtl, padding: "9px 0",
+                fontSize: 11.5, fontWeight: 600,
+                cursor: intelTypeOf(sel.etype) ? "pointer" : "default",
+                opacity: intelTypeOf(sel.etype) ? 1 : 0.4,
+                fontFamily: "YekanBakh, sans-serif",
+              }}>مشاهده پرونده کامل</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── کارت هوشمندی موجودیت ── */}
+      {cardOpen && sel && intelTypeOf(sel.etype) && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 5,
+          background: "rgba(3,9,7,0.55)", backdropFilter: "blur(2px)",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+        }}
+          onClick={() => setCardOpen(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ maxHeight: "100%", display: "flex" }}>
+            <EntityIntelCard
+              id={sel.id}
+              title={sel.label}
+              type={intelTypeOf(sel.etype)!}
+              onClose={() => setCardOpen(false)}
+              onShowInGraph={() => setCardOpen(false)}
+              related={relations.slice(0, 5).map((r) => ({
+                label: r.label, kind: r.kind, tone: toneColor[r.tone],
+              }))}
+            />
           </div>
         </div>
       )}
