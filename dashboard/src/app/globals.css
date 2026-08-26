@@ -141,3 +141,8 @@
 .anim-dot    { animation: dotPulse 2.2s ease infinite; }
 
 select option { background: var(--panel-solid); color: var(--text-1); }
+
+/* راهنمای گراف در بوم‌های باریک جای کافی ندارد و روی نوار فرمان می‌افتد */
+@media (max-width: 1180px) {
+  .graph-legend { display: none !important; }
+}

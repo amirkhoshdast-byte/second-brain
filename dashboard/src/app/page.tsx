@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { T } from "@/lib/theme";
+import IntelligenceGraph from "@/components/IntelligenceGraph";
 
 const VAULT_NAME = "Cultural Intelligence Hub";
 
@@ -24,33 +26,6 @@ type Message = {
   sources?: Array<{ title: string; folder: string; score: number; path?: string }>;
 };
 
-// ─── Design tokens — Control AI Policy Platform ────────────────────────────────
-const T = {
-  canvas:    "#030907",
-  panel:     "rgba(12,30,26,0.55)",
-  panelHi:   "rgba(18,40,35,0.72)",
-  panelSolid:"#0A1815",
-  hair:      "rgba(255,255,255,0.07)",
-  hair2:     "rgba(255,255,255,0.12)",
-  gold:      "#D9BE8A",
-  goldHi:    "#EBD6AE",
-  goldDim:   "rgba(217,190,138,0.14)",
-  goldLine:  "rgba(217,190,138,0.38)",
-  mint:      "#6FE0C0",
-  rose:      "#E88BA8",
-  lavender:  "#A99BE8",
-  sky:       "#7EC8E8",
-  ok:        "#4ADE9C",
-  warn:      "#E8B44A",
-  bad:       "#E8697A",
-  t1:        "#EAF2EF",
-  t2:        "#93A9A3",
-  t3:        "#566C66",
-  rPill:     999,
-  rCtl:      10,
-  rCard:     14,
-  rPanel:    18,
-};
 
 const folderIcon: Record<string, string> = {
   "00-templates": "📐", "01-Countries": "🌍", "02-Religions": "🕌",
@@ -158,6 +133,7 @@ function Sidebar({ active, setActive, counts }: {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined as number | undefined },
+    { id: "graph",     icon: "⬡", label: "گراف هوشمند",     badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",      badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",  badge: undefined },
     { id: "documents", icon: "▦", label: "اسناد نمایه‌شده", badge: counts.qdrant },
@@ -166,7 +142,7 @@ function Sidebar({ active, setActive, counts }: {
   return (
     <aside style={{
       width: 212, flexShrink: 0, borderLeft: `1px solid ${T.hair}`,
-      display: "flex", flexDirection: "column", minHeight: "100vh",
+      display: "flex", flexDirection: "column", height: "100vh",
       background: "rgba(6,17,14,0.55)", backdropFilter: "blur(20px)",
       position: "relative", zIndex: 2,
     }}>
@@ -174,11 +150,11 @@ function Sidebar({ active, setActive, counts }: {
       <div style={{ padding: "18px 16px 16px", borderBottom: `1px solid ${T.hair}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/*
-            نشان سازمان از public/logo.png خوانده می‌شود. تا وقتی فایل نباشد،
+            نشان سازمان از public/logo.svg خوانده می‌شود. تا وقتی فایل نباشد،
             نماد پیش‌فرض نمایش داده می‌شود تا سایدبار خراب دیده نشود.
           */}
           {logoOk ? (
-            <img src="/logo.png" alt="نشان سازمان فرهنگ و ارتباطات اسلامی"
+            <img src="/logo.svg" alt="نشان سازمان فرهنگ و ارتباطات اسلامی"
               onError={() => setLogoOk(false)}
               style={{ width: 34, height: 34, flexShrink: 0, objectFit: "contain", borderRadius: 7 }}
             />
@@ -840,6 +816,7 @@ export default function Dashboard() {
 
   const heads: Record<string, { eyebrow: string; title: string }> = {
     chat:      { eyebrow: "پرسش از پایگاه دانش", title: "دستیار هوشمند" },
+    graph:     { eyebrow: "شبکه‌ی روابط سازمانی", title: "گراف هوشمند سازمانی" },
     vault:     { eyebrow: "دفترچه یادداشت",      title: "مرورگر یادداشت‌ها" },
     search:    { eyebrow: "جستجو در متن اسناد",  title: "جستجوی معنایی" },
     documents: { eyebrow: "نمایه‌ی جستجو",       title: "اسناد نمایه‌شده" },
@@ -853,7 +830,7 @@ export default function Dashboard() {
 
   return (
     <div dir="rtl" style={{
-      display: "flex", minHeight: "100vh", background: T.canvas,
+      display: "flex", height: "100vh", overflow: "hidden", background: T.canvas,
       color: T.t1, fontFamily: "YekanBakh, system-ui, sans-serif", position: "relative",
     }}>
       {/* ── هاله رادیال — امضای بصری پلتفرم ── */}
@@ -873,7 +850,7 @@ export default function Dashboard() {
 
       <Sidebar active={active} setActive={setActive} counts={{ vault: vaultTotal, qdrant: stats?.total_documents ?? 0 }} />
 
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh", overflow: "hidden", position: "relative", zIndex: 1 }}>
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", minWidth: 0, overflow: "hidden", position: "relative", zIndex: 1 }}>
         {/* Header */}
         <header style={{
           padding: "16px 26px", flexShrink: 0,
@@ -908,9 +885,14 @@ export default function Dashboard() {
         {/* Content */}
         <div style={{
           flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
-          padding: active === "chat" ? "12px 0 0" : "14px 26px 22px",
+          // بدون minHeight صفر، این فلکس‌آیتم زیر ارتفاع محتوایش کوچک نمی‌شود و
+          // پنل‌های بلند (مثل بازرس گراف) کل صفحه را از ویوپورت بیرون می‌برند.
+          minHeight: 0,
+          // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
+          padding: active === "chat" ? "12px 0 0" : active === "graph" ? 0 : "14px 26px 22px",
         }}>
           {active === "chat"      && <ChatPanel />}
+          {active === "graph"     && <IntelligenceGraph />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}
           {active === "search"    && <SearchPanel />}
           {active === "documents" && <DocumentsPanel docs={docs} loading={loading} />}
