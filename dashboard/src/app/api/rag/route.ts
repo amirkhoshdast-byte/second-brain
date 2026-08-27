@@ -3,12 +3,37 @@ import { OLLAMA_URL, embed, search } from "@/lib/vectors";
 
 const CHAT_MODEL = "qwen3:8b";
 
-export async function POST(req: NextRequest) {
-  const { question } = await req.json();
-  if (!question?.trim()) return NextResponse.json({ error: "سوال خالی است" }, { status: 400 });
+type ChatTurn = { role: "user" | "assistant"; content: string };
 
-  // ۱. embed سوال
-  const vector = await embed(question);
+/**
+ * پرسش‌های کوتاهِ پیگیری (مثل «در پاکستان چطور؟») به تنهایی embedding
+ * مفیدی ندارند. چند نوبت آخر را با محدودیت طول وارد query بازیابی می‌کنیم؛
+ * بنابراین موضوعِ سؤال قبلی حفظ می‌شود، بی‌آنکه کل مکالمه یا دادهٔ نامرتبط
+ * به Qdrant فرستاده شود.
+ */
+function cleanHistory(value: unknown): ChatTurn[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-6).flatMap((turn): ChatTurn[] => {
+    if (!turn || typeof turn !== "object") return [];
+    const t = turn as Record<string, unknown>;
+    if ((t.role !== "user" && t.role !== "assistant") || typeof t.content !== "string") return [];
+    const content = t.content.trim().slice(0, 900);
+    return content ? [{ role: t.role, content }] : [];
+  });
+}
+
+export async function POST(req: NextRequest) {
+  const { question, history: rawHistory } = await req.json();
+  if (!question?.trim()) return NextResponse.json({ error: "سوال خالی است" }, { status: 400 });
+  const history = cleanHistory(rawHistory);
+  const priorQuestions = history.filter(t => t.role === "user").slice(-2).map(t => t.content);
+  const retrievalQuery = priorQuestions.length
+    ? `زمینهٔ پرسش‌های پیشین: ${priorQuestions.join(" | ")}\nپرسش پیگیری: ${question}`
+    : question;
+  const conversation = history.map(t => `${t.role === "user" ? "کاربر" : "دستیار"}: ${t.content}`).join("\n");
+
+  // ۱. embed پرسش کامل‌شده با زمینهٔ گفتگو
+  const vector = await embed(retrievalQuery);
 
   // ۲. بازیابی context از Qdrant
   //
@@ -57,9 +82,10 @@ export async function POST(req: NextRequest) {
 - بر اساس اسناد ارائه‌شده باشد
 - اگر اطلاعات در اسناد نیست، صادقانه بگو «در اسناد موجود اطلاعاتی پیدا نشد»
 - منابع را با [منبع N] ارجاع بده
-- پاسخ را به فارسی بده`;
+- پاسخ را به فارسی بده
+- اگر پرسش کاربر پیگیریِ پرسش قبل است، موضوع پرسش قبل را حفظ کن مگر کاربر صریحاً موضوع را عوض کرده باشد`;
 
-  const userPrompt = `اسناد مرتبط:\n\n${context}\n\n---\nسوال: ${question}`;
+  const userPrompt = `${conversation ? `تاریخچهٔ کوتاه گفتگو:\n${conversation}\n\n---\n` : ""}اسناد مرتبط:\n\n${context}\n\n---\nسوال فعلی: ${question}`;
 
   // ۴. تولید پاسخ با qwen3:8b (streaming)
   const encoder = new TextEncoder();

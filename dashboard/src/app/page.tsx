@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { T } from "@/lib/theme";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
+import KnowledgeCoverage from "@/components/KnowledgeCoverage";
 
 const VAULT_NAME = "Cultural Intelligence Hub";
 
@@ -134,6 +135,7 @@ function Sidebar({ active, setActive, counts }: {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
     { id: "world",     icon: "◍", label: "داشبورد بین‌الملل", badge: undefined as number | undefined },
+    { id: "coverage",  icon: "▤", label: "پوشش دانش",          badge: undefined },
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined },
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",     badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",      badge: counts.vault },
@@ -257,7 +259,10 @@ function ChatPanel() {
     let text = ""; let sources: Message["sources"] = [];
     try {
       const res = await fetch("/api/rag", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        // فقط چند نوبت اخیر برای فهم پرسش پیگیری فرستاده می‌شود؛ تاریخچهٔ کامل
+        // نه لازم است و نه باید بی‌دلیل وارد context بازیابی شود.
+        body: JSON.stringify({ question: q, history: messages.slice(-6).map(({ role, content }) => ({ role, content })) }),
       });
       const reader = res.body!.getReader(); const dec = new TextDecoder(); let buf = "";
       while (true) {
@@ -826,7 +831,7 @@ export default function Dashboard() {
   };
 
   const indexed = stats?.total_documents ?? 0;
-  const orgSigs = stats?.collections.find(c => c.name === "org_signals")?.points ?? 0;
+  const orgSigs = stats?.collections?.find(c => c.name === "org_signals")?.points ?? 0;
   // تعداد واقعی سند ایندکس‌شده؛ اگر Qdrant نتوانست بشمارد «—» نشان می‌دهیم
   // به‌جای عددی که از روی حدس ساخته شده باشد.
   const indexedDocs = stats?.indexed_documents;
@@ -892,9 +897,10 @@ export default function Dashboard() {
           // پنل‌های بلند (مثل بازرس گراف) کل صفحه را از ویوپورت بیرون می‌برند.
           minHeight: 0,
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
-          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world") ? 0 : "14px 26px 22px",
+          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world" || active === "coverage") ? 0 : "14px 26px 22px",
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} />}
+          {active === "coverage"  && <KnowledgeCoverage />}
           {active === "chat"      && <ChatPanel />}
           {active === "graph"     && <IntelligenceGraph />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}

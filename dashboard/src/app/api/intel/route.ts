@@ -29,11 +29,13 @@ export async function GET() {
   try {
     const c = db();
 
-    const [docs, byFolder, entities, signals, regions, topics, flow] = await Promise.all([
+    const [docs, byFolder, entities, signals, regions, topics, flow, countries, recentDocs, entityList] = await Promise.all([
       c.query(`select count(*)::int n,
                       count(*) filter (where extracted_at > now() - interval '30 days')::int recent,
                       count(distinct country)::int countries,
-                      round(avg(confidence)::numeric, 3)::float confidence
+                      round(avg(confidence)::numeric, 3)::float confidence,
+                      count(*) filter (where report_date is not null)::int dated,
+                      count(*) filter (where report_date is null)::int undated
                from intel.document`),
       c.query(`select coalesce(source_name,'نامشخص') src, count(*)::int n
                from intel.document group by 1 order by 2 desc limit 6`),
@@ -55,6 +57,17 @@ export async function GET() {
                       count(*)::int n
                from intel.document where report_date is not null
                group by 1 order by 1 desc limit 8`),
+      c.query(`select country, count(*)::int n
+               from intel.document where country is not null and country <> ''
+               group by country order by n desc, country limit 24`),
+      c.query(`select title, country, region, report_date, ai_summary, confidence::float
+               from intel.document
+               order by extracted_at desc nulls last, id desc limit 18`),
+      c.query(`select e.etype, e.name, count(m.document_id)::int mentions
+               from intel.entity e
+               left join intel.mention m on m.entity_id = e.id
+               group by e.id, e.etype, e.name
+               order by mentions desc, e.name limit 48`),
     ]);
 
     const d = docs.rows[0];
@@ -67,6 +80,10 @@ export async function GET() {
       recent: d.recent,
       countries: d.countries,
       confidence: d.confidence,
+      // اکثر پیکره تاریخ گزارش واقعی ندارد (فقط ۲ از ۴۹۲ سند)؛ UI باید این
+      // را صریح بگوید نه اینکه نمودار جریان را با یک fallback ساختگی پر کند.
+      datedDocuments: d.dated,
+      undatedDocuments: d.undated,
       entities: {
         topic: ent.topic ?? 0, person: ent.person ?? 0,
         org: ent.org ?? 0, event: ent.event ?? 0,
@@ -76,6 +93,9 @@ export async function GET() {
       regions: regions.rows,
       topics: topics.rows,
       flow: flow.rows.reverse(),
+      countriesList: countries.rows,
+      recentDocuments: recentDocs.rows,
+      entityList: entityList.rows,
     });
   } catch (err) {
     // اسکیما ساخته نشده یا پایگاه در دسترس نیست — UI باید بداند، نه اینکه صفر ببیند

@@ -45,7 +45,7 @@ services:
     container_name: orgplatform-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docs/data-model/ddl:/docker-entrypoint-initdb.d:ro

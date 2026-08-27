@@ -70,6 +70,9 @@ type IntelData = {
                     direction: string | null; evidence: number }>;
   regions?: Array<{ region: string; n: number }>;
   flow?: Array<{ m: string; n: number }>;
+  datedDocuments?: number;
+  undatedDocuments?: number;
+  sources?: Array<{ src: string; n: number }>;
 };
 
 const stypeTone: Record<string, string> = {
@@ -96,6 +99,20 @@ export default function InternationalDashboard({
     fetch("/api/intel").then((r) => r.json()).then(setIntel).catch(() => setIntel({ ready: false }));
   }, []);
   const live = intel?.ready ? intel : null;
+
+  /**
+   * پوشش تاریخ واقعی.
+   *
+   * در آزمایش با پیکره‌ی کامل، فقط ۲ از ۴۹۲ سند تاریخ گزارش داشتند — بقیه
+   * هیچ تاریخی در frontmatter یا بخش Source ندارند. با پوشش زیر ۱۰٪ رسم
+   * نمودار جریان زمانی گمراه‌کننده است (حتی با محور واقعی، چند نقطه‌ی پراکنده
+   * چیزی نشان نمی‌دهد)، پس به‌جایش پیام صریح + توزیع واقعی دیگر (منبع) نشان
+   * داده می‌شود.
+   */
+  const dateCoverage = live && live.documents
+    ? (live.datedDocuments ?? 0) / live.documents
+    : 0;
+  const hasReliableFlow = dateCoverage >= 0.1;
 
   const rows = FLOW[range];
   const totals = useMemo(() => {
@@ -224,35 +241,64 @@ export default function InternationalDashboard({
             ))}
           </div>
 
-          {/* نمودار لایه‌ای */}
+          {/* نمودار لایه‌ای — فقط وقتی پوشش تاریخ واقعی کافی است */}
           <Card style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
-              <div style={{ display: "flex", gap: 3 }}>
-                {(["هفته", "ماه", "فصل"] as const).map((r) => (
-                  <button key={r} onClick={() => setRange(r)} style={{
-                    ...filterBtn,
-                    color: range === r ? T.gold : T.t3,
-                    background: range === r ? T.goldDim : "transparent",
-                    border: `1px solid ${range === r ? T.goldLine : "transparent"}`,
-                  }}>{r}</button>
-                ))}
-              </div>
-            </div>
+            {!live || hasReliableFlow ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                  <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {(["هفته", "ماه", "فصل"] as const).map((r) => (
+                      <button key={r} onClick={() => setRange(r)} style={{
+                        ...filterBtn,
+                        color: range === r ? T.gold : T.t3,
+                        background: range === r ? T.goldDim : "transparent",
+                        border: `1px solid ${range === r ? T.goldLine : "transparent"}`,
+                      }}>{r}</button>
+                    ))}
+                  </div>
+                </div>
 
-            <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
-              <FlowChart rows={rows} />
-            </div>
+                <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
+                  <FlowChart rows={rows} />
+                </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 10, flexShrink: 0 }}>
-              {SERIES.map((s, i) => (
-                <span key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: T.t2 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: s.tone, opacity: 0.85 }} />
-                  {s.label}
-                  <span style={{ color: T.t3, fontFamily: "monospace" }}>{totals[i]}</span>
-                </span>
-              ))}
-            </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 10, flexShrink: 0 }}>
+                  {SERIES.map((s, i) => (
+                    <span key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: T.t2 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: s.tone, opacity: 0.85 }} />
+                      {s.label}
+                      <span style={{ color: T.t3, fontFamily: "monospace" }}>{totals[i]}</span>
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /*
+                پوشش تاریخ واقعی زیر ۱۰٪ است (در آزمایش: ۲ از ۴۹۲ سند). رسم
+                نمودار زمانی با این داده گمراه‌کننده است — چه با fallback
+                نادرست (که همه را در یک روز جمع می‌کرد) چه با محور واقعی
+                (که فقط دو نقطه‌ی پراکنده نشان می‌دهد). به‌جایش توزیع واقعی
+                دیگری (منبع گزارش) که از داده‌ی کامل ساخته می‌شود نشان
+                داده می‌شود.
+              */
+              <>
+                <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
+                <div style={{
+                  marginTop: 8, padding: "8px 11px", borderRadius: T.rCtl,
+                  background: "rgba(232,180,74,0.08)", border: `1px solid rgba(232,180,74,0.25)`,
+                }}>
+                  <p style={{ fontSize: 10, color: T.warn, margin: 0, lineHeight: 1.7 }}>
+                    فقط {live.datedDocuments ?? 0} از {live.documents} سند تاریخ گزارش دارند؛
+                    نمودار روند زمانی با این پوشش قابل‌اتکا نیست. به‌جایش توزیع اسناد
+                    بر اساس منبع نمایش داده می‌شود.
+                  </p>
+                </div>
+                <div style={{ flex: 1, minHeight: 0, marginTop: 12, overflowY: "auto" }}>
+                  <SourceBars sources={live.sources ?? []} />
+                </div>
+              </>
+            )}
           </Card>
         </div>
 
@@ -359,11 +405,39 @@ export default function InternationalDashboard({
   );
 }
 
+/** توزیع واقعی اسناد بر اساس منبع — جایگزین صادقانه وقتی پوشش تاریخ ناکافی است */
+function SourceBars({ sources }: { sources: Array<{ src: string; n: number }> }) {
+  if (sources.length === 0) {
+    return <p style={{ fontSize: 11, color: T.t3, textAlign: "center", marginTop: 30 }}>داده‌ای برای نمایش نیست</p>;
+  }
+  const max = Math.max(...sources.map((s) => s.n));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {sources.map((s) => (
+        <div key={s.src}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 10.5, color: T.t2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{s.src}</span>
+            <span style={{ fontSize: 10, color: T.t3, fontFamily: "monospace" }}>{s.n}</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
+            <div style={{ width: `${(s.n / max) * 100}%`, height: "100%", background: T.mint, borderRadius: 3, opacity: 0.75 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * نمودار لایه‌ای انباشته.
  *
  * انباشته است نه خطوط جدا، چون پیام صفحه «حجم ورودی که به هوش تبدیل می‌شود»
  * است؛ لایه‌های AI بالای لایه‌های گزارش می‌نشینند تا این تبدیل دیده شود.
+ *
+ * توجه: این نمودار همیشه با داده‌ی نمونه (FLOW) رسم می‌شود، نه خروجی واقعی
+ * خط لوله — چون در محصول فعلی هیچ ستون schema بین «گزارش نمایندگی/ستادی/
+ * بیرونی» تفکیک نمی‌کند. با پوشش تاریخ ناکافی (حالت رایج فعلی)، این کامپوننت
+ * اصلاً رندر نمی‌شود؛ به‌جایش SourceBars با داده‌ی واقعی نشان داده می‌شود.
  */
 function FlowChart({ rows }: { rows: number[][] }) {
   const W = 760;

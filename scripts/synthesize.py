@@ -50,9 +50,21 @@ def connect():
 def confidence_from(n_docs: int) -> float:
     """
     اطمینان از تعداد شواهد می‌آید، نه از حس مدل.
-    چهار سند ≈ ۰.۷۴، ده سند ≈ ۰.۹۲، و هرگز به ۱ نمی‌رسد.
+
+    فرمول خطی قبلی با ~۸ سند به سقف ۰.۹۵ می‌رسید؛ روی پیکره‌ی کامل که برخی
+    یافته‌ها ده‌ها شاهد دارند (۱۲۹ سند برای «دین و مذاهب»)، همه چیز یک عدد
+    می‌شد و اطمینان دیگر چیزی نمی‌گفت. لگاریتم رشد را کند می‌کند اما تا سقف
+    نمی‌چسباند: ۴ سند≈۰.۶۹، ۱۰≈۰.۷۹، ۳۰≈۰.۸۹، ۱۳۰≈۰.۹۸.
     """
-    return round(min(0.95, 0.5 + 0.06 * n_docs), 3)
+    import math
+    return round(min(0.99, 0.57 + 0.06 * math.log2(max(1, n_docs))), 3)
+
+
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def to_fa_digits(text: str) -> str:
+    return text.translate(_FA_DIGITS)
 
 
 def write_up(kind: str, facts: str, evidence: list) -> dict:
@@ -71,7 +83,12 @@ def write_up(kind: str, facts: str, evidence: list) -> dict:
         "- description: دو جمله که بگوید چه چیزی مشاهده شده و چرا مهم است\n\n"
         "قواعد عنوان:\n"
         "- واژه‌های «سیگنال»، «روند»، «الگو»، «گزارش» را در عنوان نیاور.\n"
-        "- عنوان باید موضوع و بازیگر مشخص را نام ببرد، نه دسته‌بندی را.\n\n"
+        "- عنوان باید موضوع و بازیگر مشخص را نام ببرد، نه دسته‌بندی را.\n"
+        "- هیچ عددی در عنوان نیاور (نه تعداد کشور، نه تعداد گزارش). عدد جای\n"
+        "  دیگری در رابط کاربری نمایش داده می‌شود؛ عنوان فقط باید بگوید چه\n"
+        "  چیزی رخ داده، نه بازگویی آمار همان خط بالا.\n"
+        "- عنوان نباید رونویسی از «واقعیت آماری» باشد؛ آن را با کلمات دیگر\n"
+        "  و با تمرکز روی معنای یافته بازنویسی کن، نه ساختار جمله‌اش را کپی کن.\n\n"
         "فقط از آنچه بالا آمده استفاده کن. عدد یا ادعای تازه نساز. فقط JSON بده."
     )
     payload = {
@@ -84,7 +101,13 @@ def write_up(kind: str, facts: str, evidence: list) -> dict:
             f"{OLLAMA}/api/chat", data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=300) as r:
-            return json.loads(json.load(r)["message"]["content"])
+            data = json.loads(json.load(r)["message"]["content"])
+        # مدل گاهی رقم لاتین کپی می‌کند و گاهی به فارسی می‌نویسد؛ حتی با
+        # قاعده‌ی «عدد نیاور» ممکن است رد شود، پس هرچه ماند یکدست می‌شود.
+        for k in ("title", "description"):
+            if isinstance(data.get(k), str):
+                data[k] = to_fa_digits(data[k])
+        return data
     except Exception as exc:
         print(f"    ⚠ نگارش: {exc}", flush=True)
         return None

@@ -156,13 +156,24 @@ def body_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
-def find_date(fm: dict, text: str, file: Optional[Path] = None) -> Optional[date]:
+def find_date(fm: dict, text: str) -> Optional[date]:
     """
-    تاریخ گزارش.
+    تاریخ گزارش — فقط اگر واقعاً در سند باشد.
 
-    اکثر گزارش‌های پیکره در frontmatter تاریخ ندارند. برای تحلیل روند، تاریخِ
-    ورود سند به Vault (mtime) جانشین معناداری است — پرسش «چه چیزی تازه وارد
-    شده» با همان پاسخ داده می‌شود. اولویت همیشه با تاریخ صریح متن است.
+    دو راه که امتحان و رد شدند، برای مستندسازی اینجا مانده‌اند:
+
+    ۱. mtime فایل: همه‌ی ۵۰۳ سند اخیراً یک‌جا لمس شده‌اند (sync دسته‌ای)،
+       پس mtime «زمان ورود به Vault» نیست، «زمان آخرین sync» است — با اطمینان
+       کاذب ۴۷۹ از ۴۹۲ سند را در یک روز جمع می‌کرد و نمودار روند را به یک
+       ستون تبدیل می‌کرد. بدتر از نداشتن تاریخ.
+    ۲. شناسه‌ی خبر در URL منبع (news/26119/...): روی ۱۱ سند آزمایش شد که هم
+       شناسه هم تاریخ صریح داشتند؛ نگاشت ناسازگار بود (مثلاً شناسه‌ی ۲۶۶۷۹
+       به سال ۲۰۱۸ می‌رسید) چون regex تاریخِ داخل *متن مقاله* را می‌گرفت،
+       نه تاریخ انتشار. با ۱۱ نمونه‌ی نویزی هم قابل درون‌یابی نبود.
+
+    نتیجه: برای اکثر پیکره تاریخ واقعی موجود نیست. NULL برگرداندن از حدس
+    نادرست بهتر است؛ در UI باید صریح «بدون تاریخ» دیده شود، نه در یک روز
+    قلابی جمع شود.
     """
     for k in ("created", "published", "date"):
         v = fm.get(k)
@@ -171,17 +182,16 @@ def find_date(fm: dict, text: str, file: Optional[Path] = None) -> Optional[date
                 return date.fromisoformat(v[:10])
             except ValueError:
                 pass
-    m = re.search(r"(20\d{2})-(\d{2})-(\d{2})", text)
-    if m:
-        try:
-            return date.fromisoformat(m.group(0))
-        except ValueError:
-            pass
-    if file is not None:
-        try:
-            return date.fromtimestamp(file.stat().st_mtime)
-        except OSError:
-            pass
+    # فقط از بخش «## Source» — تاریخ آنجا درباره‌ی خودِ گزارش است، نه تاریخی
+    # که موضوع مقاله (مثلاً یک رویداد تاریخی) اتفاقاً به آن اشاره کرده.
+    src_block = re.search(r"##\s*Source.*?(?=\n##\s|\Z)", text, re.S)
+    if src_block:
+        m = re.search(r"(20\d{2})-(\d{2})-(\d{2})", src_block.group(0))
+        if m:
+            try:
+                return date.fromisoformat(m.group(0))
+            except ValueError:
+                pass
     return None
 
 
@@ -288,15 +298,50 @@ def iter_docs():
         yield f, str(rel), folder
 
 
+def backfill_dates(cur):
+    """
+    فقط report_date را برای اسناد موجود بازمحاسبه می‌کند.
+
+    وقتی find_date اصلاح می‌شود (مثلاً fallback نادرست حذف می‌شود)، این تابع
+    بدون فراخوانی دوباره‌ی مدل — که برای ۵۰۰ سند ~۲.۶ ساعت طول می‌کشد —
+    فقط تاریخ‌ها را با نسخه‌ی تازه‌ی find_date تصحیح می‌کند.
+    """
+    cur.execute("select id, path from intel.document")
+    rows = cur.fetchall()
+    fixed = cleared = 0
+    for doc_id, rel in rows:
+        f = VAULT / rel
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        fm = parse_fm(text)
+        d = find_date(fm, text)
+        cur.execute("update intel.document set report_date = %s where id = %s", (d, doc_id))
+        if d is None:
+            cleared += 1
+        else:
+            fixed += 1
+    print(f"بازمحاسبه شد: {len(rows)} سند · {fixed} تاریخ معتبر · {cleared} بدون تاریخ (NULL)")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--dates-only", action="store_true",
+                     help="فقط report_date اسناد موجود را با find_date فعلی "
+                          "بازمحاسبه می‌کند؛ مدل فراخوانی نمی‌شود. برای اصلاح "
+                          "تاریخ‌های اشتباه بدون استخراج دوباره‌ی کل پیکره.")
     args = ap.parse_args()
 
     conn = connect()
     conn.autocommit = True
     cur = conn.cursor()
+
+    if args.dates_only:
+        return backfill_dates(cur)
 
     cur.execute("select path, content_hash from intel.document")
     seen = dict(cur.fetchall())
@@ -346,7 +391,7 @@ def main():
             "country": country,
             "region": REGION.get(country) if country else None,
             "producer": publisher,
-            "report_date": find_date(fm, text, f),
+            "report_date": find_date(fm, text),
             "doc_type": fm.get("type") if isinstance(fm.get("type"), str) else "report",
             "source_name": publisher,
             "source_url": url,
