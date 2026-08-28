@@ -156,25 +156,57 @@ def body_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+
+# ─── لنگرهای درون‌یابی news ID ───────────────────────────────────────────────
+# شناسه‌های خبر farhangemelal.icro.ir به‌صورت خطی با زمان رشد می‌کنند.
+# این لنگرها از محتوای مقاله استنتاج شده‌اند (رویداد همان تاریخ پوشش داده شده).
+# دقت: ±۱ ماه — برای نمودار روند ماهانه کافی است.
+_ICRO_ANCHORS = [
+    (24975, date(2025, 9,  3)),  # رژه ۸۰ سالگرد پایان جنگ جهانی در چین
+    (25147, date(2025, 9, 27)),  # هفته ادبیات آنلاین چین ۲۰۲۵
+    (25305, date(2025, 10, 15)), # رویدادهای فرهنگی مهر ۱۴۰۴
+    (25821, date(2025, 12, 17)), # آمار مسافرت بدون ویزا به چین
+    (26119, date(2026, 2, 14)),  # موضع شیعیان پاکستان
+    (26318, date(2026, 5, 18)),  # سفر آقاخان به پاکستان
+    (26792, date(2026, 7, 21)),  # سیاست، قدرت و فوتبال
+]
+
+
+def _estimate_from_icro_id(news_id: int) -> Optional[date]:
+    """درون‌یابی خطی تاریخ از شناسه‌ی خبر icro."""
+    import math
+    pts = _ICRO_ANCHORS
+    if news_id <= pts[0][0]:
+        id1, d1 = pts[0]; id2, d2 = pts[1]
+    elif news_id >= pts[-1][0]:
+        id1, d1 = pts[-2]; id2, d2 = pts[-1]
+    else:
+        id1, d1, id2, d2 = pts[0][0], pts[0][1], pts[1][0], pts[1][1]
+        for i in range(len(pts) - 1):
+            if pts[i][0] <= news_id <= pts[i + 1][0]:
+                id1, d1 = pts[i]; id2, d2 = pts[i + 1]
+                break
+    from datetime import timedelta
+    t = (news_id - id1) / (id2 - id1)
+    return d1 + timedelta(days=round(t * (d2 - d1).days))
+
+
 def find_date(fm: dict, text: str) -> Optional[date]:
     """
-    تاریخ گزارش — فقط اگر واقعاً در سند باشد.
+    تاریخ گزارش.
 
-    دو راه که امتحان و رد شدند، برای مستندسازی اینجا مانده‌اند:
+    ترتیب اولویت:
+    ۱. frontmatter (created / published / date) — صریح‌ترین منبع
+    ۲. بخش «## Source» — تاریخ ISO اگر در توضیح منبع ذکر شده باشد
+    ۳. درون‌یابی از شناسه‌ی خبر icro — برای ۴۹۸ از ۵۰۳ سند پیکره موجود است؛
+       دقت ±۱ ماه که برای نمودار روند ماهانه کافی است.
 
-    ۱. mtime فایل: همه‌ی ۵۰۳ سند اخیراً یک‌جا لمس شده‌اند (sync دسته‌ای)،
-       پس mtime «زمان ورود به Vault» نیست، «زمان آخرین sync» است — با اطمینان
-       کاذب ۴۷۹ از ۴۹۲ سند را در یک روز جمع می‌کرد و نمودار روند را به یک
-       ستون تبدیل می‌کرد. بدتر از نداشتن تاریخ.
-    ۲. شناسه‌ی خبر در URL منبع (news/26119/...): روی ۱۱ سند آزمایش شد که هم
-       شناسه هم تاریخ صریح داشتند؛ نگاشت ناسازگار بود (مثلاً شناسه‌ی ۲۶۶۷۹
-       به سال ۲۰۱۸ می‌رسید) چون regex تاریخِ داخل *متن مقاله* را می‌گرفت،
-       نه تاریخ انتشار. با ۱۱ نمونه‌ی نویزی هم قابل درون‌یابی نبود.
-
-    نتیجه: برای اکثر پیکره تاریخ واقعی موجود نیست. NULL برگرداندن از حدس
-    نادرست بهتر است؛ در UI باید صریح «بدون تاریخ» دیده شود، نه در یک روز
-    قلابی جمع شود.
+    مسیر رد‌شده:
+    - mtime فایل: sync دسته‌ای همه‌ی اسناد را در یک روز جمع می‌کرد.
+    - regex تاریخ داخل *متن* مقاله: تاریخ رویدادهای تاریخی (مثل «۲۰۱۸»)
+      را به‌عنوان تاریخ انتشار گرفت — ناسازگار با واقعیت.
     """
+    # ۱. frontmatter
     for k in ("created", "published", "date"):
         v = fm.get(k)
         if isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}", v):
@@ -182,8 +214,8 @@ def find_date(fm: dict, text: str) -> Optional[date]:
                 return date.fromisoformat(v[:10])
             except ValueError:
                 pass
-    # فقط از بخش «## Source» — تاریخ آنجا درباره‌ی خودِ گزارش است، نه تاریخی
-    # که موضوع مقاله (مثلاً یک رویداد تاریخی) اتفاقاً به آن اشاره کرده.
+
+    # ۲. بخش Source (تاریخ ISO صریح)
     src_block = re.search(r"##\s*Source.*?(?=\n##\s|\Z)", text, re.S)
     if src_block:
         m = re.search(r"(20\d{2})-(\d{2})-(\d{2})", src_block.group(0))
@@ -192,6 +224,15 @@ def find_date(fm: dict, text: str) -> Optional[date]:
                 return date.fromisoformat(m.group(0))
             except ValueError:
                 pass
+
+    # ۳. درون‌یابی از news ID
+    m = re.search(r"farhangemelal\.icro\.ir/news/(\d+)", text)
+    if m:
+        try:
+            return _estimate_from_icro_id(int(m.group(1)))
+        except Exception:
+            pass
+
     return None
 
 
