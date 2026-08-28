@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
 import Gauge from "@/components/Gauge";
 import {
   type IntelType, type EntityIntel,
-  SAMPLE, fallbackIntel, typeFa,
+  facetsFor, metricOf, SAMPLE, fallbackIntel, typeFa,
 } from "@/lib/intel";
 
 /**
@@ -38,7 +39,30 @@ const trendMark = { up: "↑", down: "↓", flat: "→" };
 export default function EntityIntelCard({
   id, title, type, onClose, onShowInGraph, onAskAssistant, onOpenDashboard, related = [],
 }: Props) {
-  const intel: EntityIntel = SAMPLE[id] ?? fallbackIntel(type);
+  const [intel, setIntel] = useState<EntityIntel>(SAMPLE[id] ?? fallbackIntel(type));
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setIntel(SAMPLE[id] ?? fallbackIntel(type));
+    setLoading(true);
+    fetch(`/api/intel/entity?id=${encodeURIComponent(id)}&type=${type}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ready) return;
+        setIntel({
+          metricLabel: metricOf[type],
+          value: data.gaugeValue ?? 0,
+          unit: "٪",
+          facets: facetsFor(type, data.facetValues ?? [0, 0, 0]),
+          metrics: data.metrics ?? fallbackIntel(type).metrics,
+          confidence: data.confidence ?? 0,
+          trend: data.trend ?? "flat",
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id, type]);
+
   const tone = toneOfType[type];
   // فقط منطقه، کشور و موضوع دامنه‌ی کافی برای یک داشبورد اختصاصی دارند
   const canDrill = type === "region" || type === "country" || type === "topic";
@@ -64,7 +88,7 @@ export default function EntityIntelCard({
 
       <div style={{ flex: 1, overflowY: "auto" }}>
         {/* گیج اصلی */}
-        <div style={{ padding: "14px 16px 6px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ padding: "14px 16px 6px", display: "flex", flexDirection: "column", alignItems: "center", opacity: loading ? 0.55 : 1, transition: "opacity 0.3s" }}>
           <p style={{ fontSize: 10.5, color: T.t2, margin: "0 0 2px" }}>{intel.metricLabel}</p>
           <Gauge value={intel.value} unit={intel.unit} size={196} tone={tone} />
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: -4 }}>
