@@ -24,6 +24,7 @@ type Props = {
   onShowInGraph?: () => void;
   onAskAssistant?: () => void;
   onOpenDashboard?: () => void;
+  onOpenSearch?: () => void;
   related?: Array<{ label: string; kind: string; tone: string }>;
 };
 
@@ -37,7 +38,7 @@ const toneOfType: Record<IntelType, string> = {
 const trendMark = { up: "↑", down: "↓", flat: "→" };
 
 export default function EntityIntelCard({
-  id, title, type, onClose, onShowInGraph, onAskAssistant, onOpenDashboard, related = [],
+  id, title, type, onClose, onShowInGraph, onAskAssistant, onOpenDashboard, onOpenSearch, related = [],
 }: Props) {
   const [intel, setIntel] = useState<EntityIntel>(SAMPLE[id] ?? fallbackIntel(type));
   const [loading, setLoading] = useState(true);
@@ -168,10 +169,11 @@ export default function EntityIntelCard({
         <div style={{ display: "flex", gap: 6 }}>
           {[
             ["مشاهده در گراف", onShowInGraph],
-            ["گزارش‌های مرتبط", undefined],
+            ["گزارش‌های مرتبط", onOpenSearch],
             ["تحلیل با دستیار", onAskAssistant],
           ].map(([label, fn]) => (
-            <button key={label as string} onClick={fn as (() => void) | undefined} style={ghostBtn}>
+            <button key={label as string} onClick={fn as (() => void) | undefined}
+              style={{ ...ghostBtn, opacity: fn ? 1 : 0.45, cursor: fn ? "pointer" : "default" }}>
               {label as string}
             </button>
           ))}

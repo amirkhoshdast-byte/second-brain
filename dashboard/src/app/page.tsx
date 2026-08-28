@@ -135,12 +135,12 @@ function Sidebar({ active, setActive, counts }: {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
     { id: "world",     icon: "◍", label: "داشبورد بین‌الملل", badge: undefined as number | undefined },
-    { id: "coverage",  icon: "▤", label: "پوشش دانش",          badge: undefined },
-    { id: "chat",      icon: "◈", label: "دستیار هوشمند",  badge: undefined },
-    { id: "graph",     icon: "⬡", label: "گراف هوشمند",     badge: undefined },
-    { id: "vault",     icon: "◇", label: "یادداشت‌ها",      badge: counts.vault },
-    { id: "search",    icon: "◎", label: "جستجوی معنایی",  badge: undefined },
-    { id: "documents", icon: "▦", label: "اسناد نمایه‌شده", badge: counts.qdrant },
+    { id: "graph",     icon: "⬡", label: "گراف هوشمند",       badge: undefined },
+    { id: "chat",      icon: "◈", label: "دستیار هوشمند",     badge: undefined },
+    { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
+    { id: "vault",     icon: "◇", label: "یادداشت‌ها",        badge: counts.vault },
+    { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
+    { id: "documents", icon: "▦", label: "اسناد نمایه‌شده",   badge: counts.qdrant },
   ];
 
   return (
@@ -899,10 +899,10 @@ export default function Dashboard() {
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
           padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world" || active === "coverage") ? 0 : "14px 26px 22px",
         }}>
-          {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} />}
+          {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
           {active === "coverage"  && <KnowledgeCoverage />}
           {active === "chat"      && <ChatPanel />}
-          {active === "graph"     && <IntelligenceGraph />}
+          {active === "graph"     && <IntelligenceGraph onOpenChat={() => setActive("chat")} />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}
           {active === "search"    && <SearchPanel />}
           {active === "documents" && <DocumentsPanel docs={docs} loading={loading} />}

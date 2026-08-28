@@ -85,10 +85,11 @@ const stypeFa: Record<string, string> = {
 };
 
 export default function InternationalDashboard({
-  reportCount, onOpenGraph,
-}: { reportCount: number | null; onOpenGraph?: () => void }) {
+  reportCount, onOpenGraph, onOpenChat,
+}: { reportCount: number | null; onOpenGraph?: () => void; onOpenChat?: () => void }) {
   const [range, setRange] = useState<"هفته" | "ماه" | "فصل">("ماه");
   const [scope] = useState<Scope>({ level: "جهان", label: "همه مناطق" });
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   /**
    * خروجی خط لوله. تا وقتی استخراج اجرا نشده، ready=false می‌ماند و صفحه
@@ -140,7 +141,15 @@ export default function InternationalDashboard({
         </span>
         <span style={{ flex: 1 }} />
         {["بازه زمانی", "منطقه", "کشور", "نمایندگی", "واحد ستادی", "موضوع", "نوع منبع"].map((f) => (
-          <button key={f} style={filterBtn}>{f} ▾</button>
+          <button key={f} onClick={() => setActiveFilter(v => v === f ? null : f)}
+            style={{ ...filterBtn, color: activeFilter === f ? T.gold : undefined, borderColor: activeFilter === f ? T.goldLine : undefined }}>
+            {f} ▾
+            {activeFilter === f && (
+              <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: T.panelSolid, border: `1px solid ${T.hair}`, borderRadius: 8, padding: "8px 14px", whiteSpace: "nowrap", fontSize: 10, color: T.t3, zIndex: 10 }}>
+                این فیلتر در نسخه‌ی بعدی فعال می‌شود
+              </span>
+            )}
+          </button>
         ))}
       </div>
 
@@ -387,7 +396,7 @@ export default function InternationalDashboard({
               فرصت کوتاه‌مدتی برای تثبیت همکاری رسمی ساخته است.
             </p>
             <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-              <button style={{
+              <button onClick={onOpenChat} style={{
                 flex: 1, background: T.goldDim, border: `1px solid ${T.goldLine}`,
                 color: T.gold, borderRadius: T.rCtl, padding: "7px 0",
                 fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "YekanBakh, sans-serif",
@@ -537,5 +546,5 @@ function Breadcrumb({ scope }: { scope: Scope }) {
 const filterBtn: React.CSSProperties = {
   background: "transparent", border: `1px solid ${T.hair}`, color: T.t2,
   borderRadius: T.rPill, padding: "4px 11px", fontSize: 9.5, cursor: "pointer",
-  fontFamily: "YekanBakh, sans-serif", whiteSpace: "nowrap",
+  fontFamily: "YekanBakh, sans-serif", whiteSpace: "nowrap", position: "relative",
 };

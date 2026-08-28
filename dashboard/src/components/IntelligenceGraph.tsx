@@ -302,7 +302,7 @@ function intelTypeOf(e: EType): IntelType | null {
   return (ok as string[]).includes(e) ? (e as IntelType) : null;
 }
 
-export default function IntelligenceGraph() {
+export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => void }) {
   const [nodes, setNodes] = useState<GNode[]>(SAMPLE_NODES);
   const [edges, setEdges] = useState<GEdge[]>(SAMPLE_EDGES);
   const [isLive, setIsLive] = useState(false);
@@ -654,10 +654,12 @@ export default function IntelligenceGraph() {
             </div>
           )}
           <input placeholder="درباره این شبکه سؤال کنید..."
+            onKeyDown={e => { if (e.key === "Enter" && e.currentTarget.value.trim()) { onOpenChat?.(); } }}
             style={{ background: "transparent", border: "none", outline: "none", color: T.t1, fontSize: 12, padding: "4px 6px", fontFamily: "YekanBakh, sans-serif", caretColor: T.gold }} />
           <div style={{ display: "flex", gap: 5, borderTop: `1px solid ${T.hair}`, paddingTop: 8 }}>
             {["منابع", "تحلیل شبکه", "ریسک‌ها", "پیشنهاد اقدام"].map(a => (
-              <button key={a} style={{ fontSize: 10, color: T.t2, background: "transparent", border: `1px solid ${T.hair}`, borderRadius: T.rPill, padding: "3px 11px", cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s" }}
+              <button key={a} onClick={onOpenChat}
+                style={{ fontSize: 10, color: T.t2, background: "transparent", border: `1px solid ${T.hair}`, borderRadius: T.rPill, padding: "3px 11px", cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = T.goldLine; e.currentTarget.style.color = T.goldHi; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = T.hair; e.currentTarget.style.color = T.t2; }}
               >{a}</button>
@@ -750,7 +752,7 @@ export default function IntelligenceGraph() {
         <div style={{ position: "absolute", inset: 0, zIndex: 5, background: "rgba(3,9,7,0.55)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={() => setCardOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{ maxHeight: "100%", display: "flex" }}>
-            <EntityIntelCard id={sel.id} title={sel.label} type={intelTypeOf(sel.etype)!} onClose={() => setCardOpen(false)} onShowInGraph={() => setCardOpen(false)}
+            <EntityIntelCard id={sel.id} title={sel.label} type={intelTypeOf(sel.etype)!} onClose={() => setCardOpen(false)} onShowInGraph={() => setCardOpen(false)} onAskAssistant={() => { setCardOpen(false); onOpenChat?.(); }} onOpenSearch={() => { setCardOpen(false); onOpenChat?.(); }}
               related={relations.slice(0, 5).map(r => ({ label: r.label, kind: r.kind, tone: toneColor[r.tone] }))} />
           </div>
         </div>
