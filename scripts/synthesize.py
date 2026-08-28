@@ -213,6 +213,31 @@ def find_cross_country(cur):
     return cur.fetchall()
 
 
+def find_geo_concentration(cur):
+    """کشوری که سهم گزارش‌هایش از میانگین بسیار بیشتر است — تمرکز جغرافیایی."""
+    cur.execute("""
+        with totals as (
+          select count(*)::float total from intel.document where country is not null
+        ),
+        per_country as (
+          select country, count(*)::int n, array_agg(id) ids
+          from intel.document where country is not null
+          group by 1
+        ),
+        n_countries as (
+          select count(distinct country)::float k from intel.document where country is not null
+        )
+        select p.country, p.n, t.total, p.ids,
+               round((p.n / t.total * 100)::numeric, 1) pct,
+               round((p.n / (t.total / nc.k))::numeric, 2) ratio
+        from per_country p, totals t, n_countries nc
+        where p.n >= 10
+          and (p.n / (t.total / nc.k)) > 1.8
+        order by ratio desc limit 5
+    """)
+    return cur.fetchall()
+
+
 def summaries(cur, ids, k=6):
     cur.execute("""select ai_summary from intel.document
                    where id = any(%s) and ai_summary is not null limit %s""",
@@ -292,6 +317,24 @@ def main():
              "بالا" if c >= 5 else "متوسط", conf, "flat", None, ids)
         made += 1
         print(f"  ✓ {w['title'][:52]} · {c} کشور · اطمینان {conf}", flush=True)
+
+    # ── تمرکز جغرافیایی ──
+    print("\nتمرکز جغرافیایی:", flush=True)
+    for country, n, total, ids, pct, ratio in find_geo_concentration(cur):
+        facts = (f"کشور {country} با {n} گزارش، {pct}٪ از کل پیکره را در بر می‌گیرد "
+                 f"(نسبت به میانگین کشوری: {ratio}× بیشتر).")
+        w = write_up("تمرکز جغرافیایی", facts, summaries(cur, ids))
+        if not w:
+            continue
+        key = norm_title(w["title"])
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        conf = confidence_from(n)
+        save(cur, "insight", w["title"], w["description"], country, None,
+             "بالا" if ratio >= 3 else "متوسط", conf, "flat", None, list(ids))
+        made += 1
+        print(f"  ✓ {w['title'][:52]} · {country} · {pct}٪ · ×{ratio}", flush=True)
 
     print(f"\nپایان. {made} استنتاج ثبت شد.", flush=True)
     cur.execute("select stype, count(*) from intel.signal group by 1 order by 2 desc")

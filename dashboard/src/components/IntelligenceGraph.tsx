@@ -56,6 +56,17 @@ function polar(deg: number, r: number) {
   return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
 }
 
+// حرکت مداری: گره‌های داخلی سریع‌تر (قانون کپلر)، سیگنال‌های AI خلاف‌جهت
+function orbitPos(base: { x: number; y: number }, origin: Origin, tick: number) {
+  const dx = base.x - CX, dy = base.y - CY;
+  const r = Math.hypot(dx, dy) || 1;
+  const baseAngle = Math.atan2(dy, dx);
+  const dir = origin === "ai" ? -1 : 1;
+  const speed = dir * 0.000028 * Math.pow(160 / r, 0.55);
+  const angle = baseAngle + tick * speed;
+  return { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) };
+}
+
 // ─── داده‌ی نمونه — fallback وقتی DB در دسترس نیست ──────────────────────────
 type Spec = {
   id: string; label: string; etype: EType; origin?: Origin;
@@ -296,6 +307,22 @@ export default function IntelligenceGraph() {
   const [edges, setEdges] = useState<GEdge[]>(SAMPLE_EDGES);
   const [isLive, setIsLive] = useState(false);
 
+  // ── انیمیشن مداری ─────────────────────────────────────────────────────────
+  const [animTick, setAnimTick] = useState(0);
+  const startMs = useRef(Date.now());
+  const frameRef = useRef<number>(0);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let last = 0;
+    const loop = (ts: number) => {
+      if (ts - last > 33) { setAnimTick(Date.now() - startMs.current); last = ts; }
+      frameRef.current = requestAnimationFrame(loop);
+    };
+    frameRef.current = requestAnimationFrame(loop);
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
+  }, []);
+
   // بارگذاری داده‌ی زنده از API
   useEffect(() => {
     fetch("/api/intel/graph")
@@ -331,9 +358,15 @@ export default function IntelligenceGraph() {
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const panning = useRef<{ x: number; y: number; from: { x: number; y: number } } | null>(null);
 
-  const byId = useMemo(
-    () => Object.fromEntries(nodes.map(n => [n.id, { ...n, ...(pos[n.id] ?? { x: n.x, y: n.y }) }])),
-    [nodes, pos]
+  const byId = useMemo(() =>
+    Object.fromEntries(nodes.map(n => {
+      const base = pos[n.id] ?? { x: n.x, y: n.y };
+      const animated = (n.kind !== "center" && draggingId !== n.id)
+        ? orbitPos(base, n.origin, animTick)
+        : base;
+      return [n.id, { ...n, ...animated }];
+    })),
+    [nodes, pos, animTick, draggingId]
   );
 
   const toLocal = (clientX: number, clientY: number) => {
@@ -360,6 +393,7 @@ export default function IntelligenceGraph() {
     panning.current = null;
     const d = drag.current;
     drag.current = null;
+    setDraggingId(null);
     if (d && !d.moved) { setCardOpen(false); setSelected(s => s === d.id ? null : d.id); }
   };
 
@@ -512,7 +546,7 @@ export default function IntelligenceGraph() {
 
               return (
                 <g key={n.id}
-                  onPointerDown={e => { e.stopPropagation(); drag.current = { id: n.id, moved: false }; }}
+                  onPointerDown={e => { e.stopPropagation(); drag.current = { id: n.id, moved: false }; setDraggingId(n.id); }}
                   onPointerEnter={() => setHover(n.id)}
                   onPointerLeave={() => setHover(h => h === n.id ? null : h)}
                   style={{ cursor: drag.current?.id === n.id ? "grabbing" : "grab", opacity: dim ? 0.42 : 1, transition: "opacity 0.25s" }}
