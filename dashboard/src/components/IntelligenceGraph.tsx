@@ -354,6 +354,38 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const [hover, setHover] = useState<string | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
 
+  // ── داده زنده بازرس ───────────────────────────────────────────────────────
+  type LiveInspector = {
+    metrics: Array<[string, string]>;
+    confidence: number;
+    trend: "up" | "down" | "flat";
+    description?: string;
+  };
+  const [liveInspector, setLiveInspector] = useState<Record<string, LiveInspector>>({});
+
+  useEffect(() => {
+    if (!selected) return;
+    if (liveInspector[selected]) return; // already fetched
+    const sel = nodes.find(n => n.id === selected);
+    if (!sel) return;
+    fetch(`/api/intel/entity?id=${encodeURIComponent(selected)}&type=${sel.etype}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ready) return;
+        setLiveInspector(prev => ({
+          ...prev,
+          [selected]: {
+            metrics: data.metrics ?? [],
+            confidence: data.confidence ?? 0,
+            trend: data.trend ?? "flat",
+            description: data.description,
+          },
+        }));
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   const zoomRef = useRef<SVGGElement>(null);
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const panning = useRef<{ x: number; y: number; from: { x: number; y: number } } | null>(null);
@@ -479,6 +511,7 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   }, [selected, views, byId, hidden, edges]);
 
   const info = (selected && INSPECTOR[selected]) || null;
+  const liveInfo = selected ? liveInspector[selected] : null;
   const selType = sel ? typeLabel[sel.etype] : "";
   const centerNode = nodes.find(n => n.kind === "center");
 
@@ -699,14 +732,20 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-            {info && (
+            {/* آمارها — زنده یا ثابت */}
+            {(liveInfo?.metrics?.length || info?.stats?.length) ? (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-                {info.stats.map(([label, v]) => (
+                {(liveInfo?.metrics ?? info!.stats).map(([v, label]) => (
                   <div key={label} style={{ background: "rgba(0,0,0,0.22)", border: `1px solid ${T.hair}`, borderRadius: T.rCtl, padding: "9px 11px" }}>
-                    <p style={{ fontSize: 17, fontWeight: 300, color: T.t1, margin: 0, lineHeight: 1 }}>{v}</p>
+                    <p style={{ fontSize: 17, fontWeight: 300, color: T.t1, margin: 0, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</p>
                     <p style={{ fontSize: 9, color: T.t3, margin: "5px 0 0" }}>{label}</p>
                   </div>
                 ))}
+              </div>
+            ) : !liveInfo && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 0" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.t3, animation: "jarvis-glow 1.2s ease-in-out infinite" }} />
+                <span style={{ fontSize: 10, color: T.t3 }}>در حال بارگذاری داده...</span>
               </div>
             )}
 
@@ -736,7 +775,9 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                 تحلیل هوشمند
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                {(() => {
+                {liveInfo?.description ? (
+                  <Insight label="توضیح" text={liveInfo.description} tone={T.t2} />
+                ) : (() => {
                   const ai = info?.ai ?? GENERIC_AI;
                   return (
                     <>
