@@ -604,10 +604,24 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
           })}
           {/* نشانگر داده‌ی زنده */}
           <span style={{ width: 1, height: 16, background: T.hair }} />
-          <span style={{ fontSize: 9, padding: "3px 9px", borderRadius: T.rPill, color: isLive ? T.ok : T.t3, background: isLive ? "rgba(74,222,156,0.10)" : "rgba(255,255,255,0.05)", border: `1px solid ${isLive ? "rgba(74,222,156,0.3)" : T.hair}` }}>
-            {isLive ? "داده‌ی زنده" : "داده‌ی نمونه"}
+          <span title={isLive
+              ? `${nodes.length} موجودیت پرتکرار — لبه‌ها بر اساس هم‌ذکری در یک سند`
+              : "گراف نمونه — DB در دسترس نیست یا خط لوله اجرا نشده"}
+            style={{ fontSize: 9, padding: "3px 9px", borderRadius: T.rPill, cursor: "help",
+              color: isLive ? T.ok : T.t3, background: isLive ? "rgba(74,222,156,0.10)" : "rgba(255,255,255,0.05)", border: `1px solid ${isLive ? "rgba(74,222,156,0.3)" : T.hair}` }}>
+            {isLive ? `زنده · ${nodes.length} موجودیت` : "نمونه"}
           </span>
         </div>
+
+        {/* توضیح پایه داده */}
+        {!isLive && (
+          <div className="panel anim-fadein" style={{ position: "absolute", top: 64, left: "50%", transform: "translateX(-50%)",
+            padding: "7px 14px", fontSize: 10, color: T.warn, borderRadius: T.rCtl,
+            background: "rgba(232,180,74,0.07)", border: `1px solid rgba(232,180,74,0.25)`,
+            maxWidth: 420, textAlign: "center", pointerEvents: "none" }}>
+            گراف نمونه — برای نمایش داده‌ی واقعی، DB را وصل کنید و خط لوله را اجرا کنید
+          </div>
+        )}
 
         {/* پانل فیلتر */}
         {showFilter && (

@@ -131,8 +131,9 @@ function LeaderRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({ active, setActive, counts }: {
+function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
   active: string; setActive: (v: string) => void; counts: { vault: number; qdrant: number };
+  isMobile?: boolean; open?: boolean; onClose?: () => void;
 }) {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
@@ -149,8 +150,12 @@ function Sidebar({ active, setActive, counts }: {
     <aside style={{
       width: 212, flexShrink: 0, borderLeft: `1px solid ${T.hair}`,
       display: "flex", flexDirection: "column", height: "100vh",
-      background: "rgba(6,17,14,0.55)", backdropFilter: "blur(20px)",
-      position: "relative", zIndex: 2,
+      background: "rgba(6,17,14,0.88)", backdropFilter: "blur(20px)",
+      position: isMobile ? "fixed" : "relative",
+      top: 0, right: 0, bottom: 0,
+      zIndex: isMobile ? 11 : 2,
+      transform: isMobile ? (open ? "translateX(0)" : "translateX(100%)") : "none",
+      transition: "transform 0.25s cubic-bezier(0.4,0,0.2,1)",
     }}>
       {/* Brand */}
       <div style={{ padding: "18px 16px 16px", borderBottom: `1px solid ${T.hair}` }}>
@@ -819,6 +824,15 @@ export default function Dashboard() {
   const [vaultFiles, setVaultFiles] = useState<VaultFile[]>([]);
   const [vaultTotal, setVaultTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -865,17 +879,34 @@ export default function Dashboard() {
         background: "radial-gradient(ellipse 92% 78% at 50% 46%, transparent 42%, rgba(0,0,0,0.62) 100%)",
       }} />
 
-      <Sidebar active={active} setActive={setActive} counts={{ vault: vaultTotal, qdrant: stats?.total_documents ?? 0 }} />
+      {/* overlay backdrop on mobile */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 10 }} />
+      )}
+
+      <Sidebar active={active} setActive={(v) => { setActive(v); if (isMobile) setSidebarOpen(false); }}
+        counts={{ vault: vaultTotal, qdrant: stats?.total_documents ?? 0 }}
+        isMobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", minWidth: 0, overflow: "hidden", position: "relative", zIndex: 1 }}>
         {/* Header */}
         <header style={{
-          padding: "16px 26px", flexShrink: 0,
+          padding: "12px 16px", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
         }}>
-          <div>
-            <p style={{ fontSize: 9, color: T.t3, margin: 0, letterSpacing: "0.14em", fontWeight: 500 }}>{heads[active]?.eyebrow}</p>
-            <h1 style={{ fontSize: 19, fontWeight: 400, color: T.t1, margin: "5px 0 0", letterSpacing: "-0.01em" }}>{heads[active]?.title}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(v => !v)} style={{
+                background: "none", border: `1px solid ${T.hair}`, borderRadius: T.rCtl,
+                color: T.t2, cursor: "pointer", padding: "6px 9px", fontSize: 14, lineHeight: 1,
+                fontFamily: "YekanBakh, sans-serif",
+              }}>☰</button>
+            )}
+            <div>
+              <p style={{ fontSize: 9, color: T.t3, margin: 0, letterSpacing: "0.14em", fontWeight: 500 }}>{heads[active]?.eyebrow}</p>
+              <h1 style={{ fontSize: isMobile ? 15 : 19, fontWeight: 400, color: T.t1, margin: "4px 0 0", letterSpacing: "-0.01em" }}>{heads[active]?.title}</h1>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <span style={{
@@ -885,13 +916,13 @@ export default function Dashboard() {
               <span className="anim-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: T.ok, display: "inline-block" }} />
               فعال
             </span>
-            <Pill label="محیط توسعه" tone={T.warn} />
+            {!isMobile && <Pill label="محیط توسعه" tone={T.warn} />}
           </div>
         </header>
 
         {/* Metric strip */}
         {(active === "chat" || active === "documents") && (
-          <div style={{ padding: "0 26px 4px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, flexShrink: 0 }}>
+          <div style={{ padding: `0 ${isMobile ? "10px" : "26px"} 4px`, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 8, flexShrink: 0 }}>
             <Metric label="یادداشت‌ها"        value={loading ? "—" : vaultTotal} unit="یادداشت" tone={T.rose} />
             <Metric label="قطعه‌ی قابل جستجو" value={loading ? "—" : indexed}    unit="قطعه"   tone={T.mint} />
             <Metric label="سند نمایه‌شده"     value={loading ? "—" : (indexedDocs ?? "—")} unit="سند" tone={T.lavender} />

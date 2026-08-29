@@ -217,10 +217,14 @@ export default function InternationalDashboard({
                 ["۹", "فرصت", T.ok], ["۶", "ریسک", T.bad],
                 ["۵", "تغییر مهم", T.gold], ["۴", "روند نوظهور", T.lavender],
               ].map(([v, l, c]) => (
-                <div key={l as string} style={{
+                <div key={l as string} onClick={onOpenChat} style={{
                   background: "rgba(0,0,0,0.22)", border: `1px solid ${T.hair}`,
                   borderRadius: T.rCtl, padding: "9px 10px",
-                }}>
+                  cursor: onOpenChat ? "pointer" : "default",
+                  transition: "border-color 0.15s",
+                }}
+                onMouseEnter={e => { if (onOpenChat) (e.currentTarget as HTMLDivElement).style.borderColor = `${(c as string)}55`; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = T.hair; }}>
                   <p style={{ fontSize: 17, fontWeight: 300, color: c as string, margin: 0, lineHeight: 1 }}>{v as string}</p>
                   <p style={{ fontSize: 8.5, color: T.t3, margin: "5px 0 0" }}>{l as string}</p>
                 </div>
@@ -329,11 +333,17 @@ export default function InternationalDashboard({
                   }))
                 : ATTENTION
               ).map((a) => (
-                <div key={a.title} style={{
+                <div key={a.title}
+                  onClick={onOpenChat}
+                  style={{
                   background: "rgba(0,0,0,0.2)", border: `1px solid ${T.hair}`,
                   borderRadius: T.rCtl, padding: "9px 11px",
                   borderRight: `2px solid ${a.tone}`,
-                }}>
+                  cursor: onOpenChat ? "pointer" : "default",
+                  transition: "border-color 0.15s",
+                }}
+                onMouseEnter={e => { if (onOpenChat) (e.currentTarget as HTMLDivElement).style.borderColor = `${T.goldLine}`; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${T.hair}`; }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                     <span style={{ fontSize: 8.5, color: a.tone, fontWeight: 600 }}>{a.kind}</span>
                     <span style={{ fontSize: 8.5, color: T.t3 }}>
