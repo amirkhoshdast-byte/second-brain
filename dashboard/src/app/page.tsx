@@ -5,6 +5,8 @@ import { T } from "@/lib/theme";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
+import dynamic from "next/dynamic";
+const JarvisOrb = dynamic(() => import("@/components/JarvisOrb"), { ssr: false });
 
 const VAULT_NAME = "Cultural Intelligence Hub";
 
@@ -296,14 +298,9 @@ function ChatPanel() {
       <div style={{ flex: 1, overflowY: "auto", padding: "26px 34px", display: "flex", flexDirection: "column", gap: 20 }}>
         {messages.length === 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center" }}>
-            {/* Orb — نود مرکزی پلتفرم */}
-            <div style={{ position: "relative", marginBottom: 26 }}>
-              <div style={{ position: "absolute", inset: -46, borderRadius: "50%", background: `radial-gradient(circle, ${T.mint}22 0%, transparent 68%)` }} />
-              <div style={{ position: "absolute", inset: -22, borderRadius: "50%", border: `1px solid rgba(111,224,192,0.14)` }} />
-              <div className="anim-orb" style={{
-                width: 62, height: 62, borderRadius: "50%", position: "relative",
-                background: `radial-gradient(circle at 34% 30%, #BFF3E4 0%, ${T.mint} 34%, #157D67 72%, #0A3D33 100%)`,
-              }} />
+            {/* Jarvis AI orb */}
+            <div style={{ position: "relative", marginBottom: 18 }}>
+              <JarvisOrb />
             </div>
             <h2 style={{ color: T.t1, fontSize: 19, fontWeight: 400, margin: "0 0 7px", letterSpacing: "-0.01em" }}>دستیار هوشمند سازمانی</h2>
             <p style={{ color: T.t3, fontSize: 12, margin: "0 0 32px" }}>پرسش خود را از پایگاه دانش Vault بپرسید</p>
@@ -335,11 +332,23 @@ function ChatPanel() {
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700,
                 }}>ش</div>
               ) : (
-                <div style={{
-                  width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                  background: `radial-gradient(circle at 34% 30%, #BFF3E4 0%, ${T.mint} 40%, #14705C 100%)`,
-                  boxShadow: `0 0 14px rgba(111,224,192,0.28)`,
-                }} />
+                <div style={{ width: 28, height: 28, flexShrink: 0, overflow: "visible" }}>
+                  <svg viewBox="-44 -44 88 88" width="28" height="28" xmlns="http://www.w3.org/2000/svg"
+                    style={{ filter: "drop-shadow(0 0 5px rgba(111,224,192,0.5))" }}>
+                    <defs>
+                      <radialGradient id="av-g" cx="38%" cy="32%" r="60%">
+                        <stop offset="0%"   stopColor="#E0FFF5" stopOpacity="0.95" />
+                        <stop offset="35%"  stopColor="#6FE0C0" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="#063D30" stopOpacity="1" />
+                      </radialGradient>
+                    </defs>
+                    <circle cx="0" cy="0" r="40" fill="url(#av-g)" />
+                    <circle cx="0" cy="0" r="14" fill="none" stroke="#6FE0C0" strokeWidth="1" strokeOpacity="0.6"
+                      strokeDasharray="3 5"
+                      style={{ animation: "jarvis-spin-cw 3s linear infinite", transformOrigin:"0 0" }} />
+                    <circle cx="0" cy="0" r="4" fill="#ADFFF0" opacity="0.9" />
+                  </svg>
+                </div>
               )}
               <div style={{ maxWidth: "76%", display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{
