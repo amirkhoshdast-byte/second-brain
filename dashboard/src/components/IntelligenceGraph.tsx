@@ -56,13 +56,14 @@ function polar(deg: number, r: number) {
   return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
 }
 
-// حرکت مداری: گره‌های داخلی سریع‌تر (قانون کپلر)، سیگنال‌های AI خلاف‌جهت
+// حرکت مداری: قانون کپلر — گره‌های نزدیک‌تر سریع‌تر، AI خلاف‌جهت
 function orbitPos(base: { x: number; y: number }, origin: Origin, tick: number) {
   const dx = base.x - CX, dy = base.y - CY;
   const r = Math.hypot(dx, dy) || 1;
   const baseAngle = Math.atan2(dy, dx);
   const dir = origin === "ai" ? -1 : 1;
-  const speed = dir * 0.000028 * Math.pow(160 / r, 0.55);
+  // سرعت پایه ۵× بیشتر از قبل — هر دور ~۴۵ ثانیه برای r=200
+  const speed = dir * 0.00014 * Math.pow(160 / r, 0.55);
   const angle = baseAngle + tick * speed;
   return { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) };
 }
@@ -543,7 +544,15 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
               <stop offset="0%"   stopColor={T.mint} stopOpacity="0.06" />
               <stop offset="100%" stopColor={T.mint} stopOpacity="0" />
             </radialGradient>
+            <filter id="gBlur4"><feGaussianBlur stdDeviation="4" /></filter>
+            <filter id="gBlur8"><feGaussianBlur stdDeviation="8" /></filter>
           </defs>
+
+          {/* پالس مرکزی — نبض خورشید */}
+          <ellipse cx={CX} cy={CY} rx={75 + 18 * Math.sin(animTick / 900)} ry={75 + 18 * Math.sin(animTick / 900)}
+            fill={T.gold} opacity={0.05 + 0.04 * Math.sin(animTick / 900)} filter="url(#gBlur8)" />
+          <ellipse cx={CX} cy={CY} rx={48 + 8 * Math.sin(animTick / 700)} ry={48 + 8 * Math.sin(animTick / 700)}
+            fill={T.gold} opacity={0.08 + 0.06 * Math.sin(animTick / 700)} filter="url(#gBlur4)" />
 
           <ellipse cx={CX} cy={CY - 30} rx={430} ry={340} fill="url(#ambient)" />
 
@@ -556,14 +565,31 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
               const lit = onHover || (selected ? neighbours.has(e.from) && neighbours.has(e.to) : false);
               const dim = !lit && (selected !== null || hover !== null);
               const tone = e.system === "execution" ? T.gold : T.mint;
+              const d = curve(a, b);
+              const dashLen = e.strong ? 12 : 8;
+              const dashFlow = (animTick / (e.strong ? 18 : 28)) % (dashLen * 2);
               return (
-                <path key={i} d={curve(a, b)} fill="none"
-                  stroke={lit ? T.goldHi : tone}
-                  strokeWidth={lit ? 1.5 : e.strong ? 1.1 : 0.7}
-                  strokeOpacity={dim ? 0.09 : lit ? 0.8 : e.strong ? 0.32 : 0.17}
-                  strokeLinecap="round"
-                  style={{ transition: "stroke-opacity 0.18s, stroke 0.18s" }}
-                />
+                <g key={i}>
+                  {/* یال پایه */}
+                  <path d={d} fill="none"
+                    stroke={lit ? T.goldHi : tone}
+                    strokeWidth={lit ? 1.8 : e.strong ? 1.1 : 0.7}
+                    strokeOpacity={dim ? 0.09 : lit ? 0.75 : e.strong ? 0.30 : 0.15}
+                    strokeLinecap="round"
+                    style={{ transition: "stroke-opacity 0.18s, stroke 0.18s" }}
+                  />
+                  {/* جریان متحرک روی یال‌های مهم */}
+                  {(lit || e.strong) && !dim && (
+                    <path d={d} fill="none"
+                      stroke={tone}
+                      strokeWidth={lit ? 2.2 : 1.4}
+                      strokeOpacity={lit ? 0.55 : 0.22}
+                      strokeLinecap="round"
+                      strokeDasharray={`${dashLen} ${dashLen}`}
+                      strokeDashoffset={-dashFlow}
+                    />
+                  )}
+                </g>
               );
             })}
 
@@ -587,14 +613,23 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                   {n.kind === "center" ? (
                     <>
                       <circle cx={n.x} cy={n.y} r={120} fill="url(#coreGlow)" />
-                      <circle cx={n.x} cy={n.y} r={r + 13} fill="none" stroke={T.goldLine} strokeWidth={0.7} />
+                      {/* حلقه‌ی مداری محیطی مرکز */}
+                      <ellipse cx={n.x} cy={n.y} rx={r + 28} ry={(r + 28) * 0.28}
+                        fill="none" stroke={T.goldLine} strokeWidth={0.5} strokeOpacity={0.35}
+                        transform={`rotate(-15 ${n.x} ${n.y})`} />
+                      <circle cx={n.x} cy={n.y} r={r + 13} fill="none" stroke={T.goldLine} strokeWidth={0.7}
+                        strokeOpacity={0.5 + 0.3 * Math.sin(animTick / 800)} />
                       <circle cx={n.x} cy={n.y} r={r} fill="url(#coreBody)" />
                     </>
                   ) : (
                     <>
-                      <circle cx={n.x} cy={n.y} r={r * 2.6} fill={c} opacity={dim ? 0 : 0.07} />
+                      {/* halo زنده */}
+                      <circle cx={n.x} cy={n.y} r={r * (2.6 + 0.6 * Math.sin(animTick / 600 + n.x))} fill={c}
+                        opacity={dim ? 0 : 0.05 + 0.03 * Math.sin(animTick / 600 + n.x)} />
                       {n.origin === "ai" && (
-                        <circle cx={n.x} cy={n.y} r={r + 5} fill="none" stroke={c} strokeWidth={0.8} strokeDasharray="2 3" opacity={dim ? 0.25 : 0.7} />
+                        <circle cx={n.x} cy={n.y} r={r + 5 + 2 * Math.sin(animTick / 500)}
+                          fill="none" stroke={c} strokeWidth={0.8} strokeDasharray="2 3"
+                          opacity={dim ? 0.15 : 0.55 + 0.25 * Math.sin(animTick / 500)} />
                       )}
                       <circle cx={n.x} cy={n.y} r={r}
                         fill={n.kind === "primary" ? c : T.panelSolid}
@@ -604,7 +639,14 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                       />
                     </>
                   )}
-                  {isSel && <circle cx={n.x} cy={n.y} r={r + 7} fill="none" stroke={T.gold} strokeWidth={1.1} />}
+                  {/* حلقه انتخاب — پالس */}
+                  {isSel && <circle cx={n.x} cy={n.y}
+                    r={r + 7 + 3 * Math.sin(animTick / 400)}
+                    fill="none" stroke={T.gold}
+                    strokeWidth={1.2} strokeOpacity={0.7 + 0.3 * Math.sin(animTick / 400)} />}
+                  {/* حلقه hover */}
+                  {n.id === hover && !isSel && <circle cx={n.x} cy={n.y} r={r + 5}
+                    fill="none" stroke={c} strokeWidth={1} strokeOpacity={0.5} />}
                   <text
                     x={labelOnLeft ? n.x - r - 8 : n.x + r + 8} y={n.y + (n.kind === "center" ? 4 : 3.5)}
                     textAnchor={labelOnLeft ? "end" : "start"}
