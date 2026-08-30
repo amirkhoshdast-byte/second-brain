@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
+import DocumentUpload from "@/components/DocumentUpload";
 import dynamic from "next/dynamic";
 const JarvisOrb = dynamic(() => import("@/components/JarvisOrb"), { ssr: false });
 
@@ -144,6 +145,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",        badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
     { id: "documents", icon: "▦", label: "اسناد نمایه‌شده",   badge: counts.qdrant },
+    { id: "upload",    icon: "⊕", label: "آپلود مقاله",        badge: undefined },
   ];
 
   return (
@@ -937,7 +939,7 @@ export default function Dashboard() {
           // پنل‌های بلند (مثل بازرس گراف) کل صفحه را از ویوپورت بیرون می‌برند.
           minHeight: 0,
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
-          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world" || active === "coverage") ? 0 : "14px 26px 22px",
+          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world" || active === "coverage") ? 0 : active === "upload" ? "24px" : "14px 26px 22px",
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
           {active === "coverage"  && <KnowledgeCoverage />}
@@ -946,6 +948,7 @@ export default function Dashboard() {
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}
           {active === "search"    && <SearchPanel />}
           {active === "documents" && <DocumentsPanel docs={docs} loading={loading} />}
+          {active === "upload"    && <DocumentUpload onDone={() => {}} />}
         </div>
       </main>
     </div>

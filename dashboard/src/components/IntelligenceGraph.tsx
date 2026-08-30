@@ -20,6 +20,7 @@ type System = "knowledge" | "execution";
 type GNode = {
   id: string; label: string; kind: Kind; etype: EType;
   origin: Origin; tone: Tone; cluster?: string; x: number; y: number;
+  docCount?: number; // برای مقیاس‌بندی اندازه کشور در حالت چندمرکزی
 };
 
 type GEdge = {
@@ -29,10 +30,13 @@ type GEdge = {
 // ─── داده‌ی API گراف ──────────────────────────────────────────────────────────
 type GraphData = {
   ready: boolean;
+  mode?: "multi" | "single";
+  centerCountry?: string;
   countries?: Array<{ country: string; n: number }>;
   entities?: Array<{ id: string; etype: string; name: string; mentions: number }>;
   cooccur?: Array<{ a: string; b: string; w: number }>;
   signals?: Array<{ id: string; stype: string; title: string; country: string | null; topic: string | null; confidence: number }>;
+  perCountry?: Array<{ country: string; eid: string; name: string; etype: string; mentions: number }>;
 };
 
 const toneColor: Record<Tone, string> = {
@@ -57,15 +61,14 @@ function polar(deg: number, r: number) {
 }
 
 // حرکت مداری: قانون کپلر — گره‌های نزدیک‌تر سریع‌تر، AI خلاف‌جهت
-function orbitPos(base: { x: number; y: number }, origin: Origin, tick: number) {
-  const dx = base.x - CX, dy = base.y - CY;
+function orbitPos(base: { x: number; y: number }, origin: Origin, tick: number, pivot = { x: CX, y: CY }) {
+  const dx = base.x - pivot.x, dy = base.y - pivot.y;
   const r = Math.hypot(dx, dy) || 1;
   const baseAngle = Math.atan2(dy, dx);
   const dir = origin === "ai" ? -1 : 1;
-  // سرعت پایه ۵× بیشتر از قبل — هر دور ~۴۵ ثانیه برای r=200
   const speed = dir * 0.00014 * Math.pow(160 / r, 0.55);
   const angle = baseAngle + tick * speed;
-  return { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) };
+  return { x: pivot.x + r * Math.cos(angle), y: pivot.y + r * Math.sin(angle) };
 }
 
 // ─── داده‌ی نمونه — fallback وقتی DB در دسترس نیست ──────────────────────────
@@ -255,6 +258,72 @@ function buildGraph(data: GraphData): { nodes: GNode[]; edges: GEdge[] } {
   return { nodes, edges };
 }
 
+// ─── گراف چندمرکزی — هر کشور یک خورشید ───────────────────────────────────────
+function buildMultiGraph(data: GraphData): { nodes: GNode[]; edges: GEdge[] } {
+  if (!data.ready || !data.countries?.length) return { nodes: SAMPLE_NODES, edges: SAMPLE_EDGES };
+
+  const nodes: GNode[] = [];
+  const edges: GEdge[] = [];
+
+  const topCountries = data.countries.slice(0, 8);
+  const N = topCountries.length;
+  const maxDocs = topCountries[0]?.n ?? 1;
+  // چیدمان بیضوی — کشورهای بزرگ‌تر در مرکزتر
+  const RING_R = 220;
+
+  topCountries.forEach((c, i) => {
+    const deg = (i / N) * 360 - 90;
+    const rad = (deg * Math.PI) / 180;
+    const cx = CX + RING_R * Math.cos(rad);
+    const cy = CY + RING_R * Math.sin(rad);
+    const countryId = `c_${c.country}`;
+    nodes.push({
+      id: countryId, label: c.country, kind: "center", etype: "country",
+      origin: "source", tone: "gold", x: cx, y: cy, docCount: c.n,
+    });
+
+    // موجودیت‌های هر کشور — مدار نزدیک‌تر، پخش‌تر
+    const countryEnts = (data.perCountry ?? []).filter(e => e.country === c.country);
+    const nEnts = countryEnts.length;
+    countryEnts.forEach((e, j) => {
+      const rNode = radiusOf({ kind: "center", docCount: c.n } as GNode);
+      const orbitR = rNode + 42 + (j % 3) * 16;
+      const eDeg = deg + (j / Math.max(nEnts, 1)) * 300 - 150; // قوس ۳۰۰° دور کشور
+      const eRad = (eDeg * Math.PI) / 180;
+      const ex = cx + orbitR * Math.cos(eRad);
+      const ey = cy + orbitR * Math.sin(eRad);
+      const eid = `e_${e.eid}`;
+      if (!nodes.find(n => n.id === eid)) {
+        nodes.push({
+          id: eid, label: truncLabel(e.name, 12), kind: "entity",
+          etype: e.etype as EType, origin: "source", tone: "blue" as Tone,
+          cluster: c.country, x: ex, y: ey,
+        });
+      }
+      edges.push({ from: countryId, to: eid, system: "knowledge", rel: "موجودیت", strong: e.mentions > 5 });
+    });
+  });
+
+  // سیگنال‌های AI در مرکز بوم
+  (data.signals ?? []).slice(0, 6).forEach((s, i) => {
+    const deg = (i / 6) * 360 - 90;
+    const rad = (deg * Math.PI) / 180;
+    const sid = `s_${s.id}`;
+    nodes.push({
+      id: sid, label: truncLabel(s.title, 12), kind: "entity",
+      etype: (SIGNAL_ETYPE[s.stype] ?? "signal") as EType,
+      origin: "ai", tone: SIGNAL_TONE[s.stype] ?? "ai",
+      cluster: "هوش استخراجی", x: CX + 72 * Math.cos(rad), y: CY + 72 * Math.sin(rad),
+    });
+    if (s.country) {
+      const target = nodes.find(n => n.id === `c_${s.country}`);
+      if (target) edges.push({ from: sid, to: target.id, system: "knowledge", rel: "سیگنال از", strong: s.confidence > 0.8 });
+    }
+  });
+
+  return { nodes, edges };
+}
+
 // ─── بازرس — داده‌ی ثابت برای نمونه ──────────────────────────────────────────
 type InspectorData = {
   status: string; priority: string;
@@ -286,7 +355,12 @@ const CLUSTERS = [
 ];
 
 function radiusOf(n: GNode) {
-  return n.kind === "center" ? 34 : n.kind === "report" ? 13 : n.kind === "primary" ? 15 : 8.5;
+  if (n.kind === "center") {
+    // در حالت چندمرکزی اندازه را بر اساس تعداد سند مقیاس می‌کنیم (۱۸–۳۸)
+    if (n.docCount != null) return Math.max(18, Math.min(38, 18 + Math.sqrt(n.docCount) * 1.4));
+    return 34;
+  }
+  return n.kind === "report" ? 13 : n.kind === "primary" ? 15 : 8.5;
 }
 
 function curve(a: GNode, b: GNode) {
@@ -307,6 +381,9 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const [nodes, setNodes] = useState<GNode[]>(SAMPLE_NODES);
   const [edges, setEdges] = useState<GEdge[]>(SAMPLE_EDGES);
   const [isLive, setIsLive] = useState(false);
+  const [countryFilter, setCountryFilter] = useState<string | null>(null); // null = multi
+  const [topCountries, setTopCountries] = useState<Array<{ country: string; n: number }>>([]);
+  const [rawData, setRawData] = useState<GraphData | null>(null);
 
   // ── انیمیشن مداری ─────────────────────────────────────────────────────────
   const [animTick, setAnimTick] = useState(0);
@@ -326,11 +403,21 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
 
   // بارگذاری داده‌ی زنده از API
   useEffect(() => {
-    fetch("/api/intel/graph")
+    const url = countryFilter
+      ? `/api/intel/graph?country=${encodeURIComponent(countryFilter)}`
+      : "/api/intel/graph";
+    fetch(url)
       .then(r => r.json())
       .then((data: GraphData) => {
-        const { nodes: n, edges: e } = buildGraph(data);
-        if (data.ready && n !== SAMPLE_NODES) {
+        if (!data.ready) return;
+        setRawData(data);
+        if (data.countries?.length && !countryFilter) {
+          setTopCountries(data.countries.slice(0, 8));
+        }
+        const { nodes: n, edges: e } = countryFilter
+          ? buildGraph(data)
+          : (data.mode === "multi" ? buildMultiGraph(data) : buildGraph(data));
+        if (n !== SAMPLE_NODES) {
           setNodes(n);
           setEdges(e);
           setPos(Object.fromEntries(n.map(nd => [nd.id, { x: nd.x, y: nd.y }])));
@@ -338,9 +425,9 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
           setIsLive(true);
         }
       })
-      .catch(() => {}); // fallback to sample data silently
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [countryFilter]);
 
   const [selected, setSelected] = useState<string | null>("indonesia");
   const [views, setViews] = useState<Record<System, boolean>>({ knowledge: true, execution: false });
@@ -391,15 +478,25 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const panning = useRef<{ x: number; y: number; from: { x: number; y: number } } | null>(null);
 
+  // در حالت چندمرکزی، مرکز pivot هر موجودیت = گره کشور همان cluster
+  const clusterPivots = useMemo(() => {
+    const map: Record<string, { x: number; y: number }> = {};
+    for (const n of nodes) {
+      if (n.kind === "center") map[n.label] = { x: n.x, y: n.y };
+    }
+    return map;
+  }, [nodes]);
+
   const byId = useMemo(() =>
     Object.fromEntries(nodes.map(n => {
       const base = pos[n.id] ?? { x: n.x, y: n.y };
+      const pivot = (n.cluster && clusterPivots[n.cluster]) ? clusterPivots[n.cluster] : { x: CX, y: CY };
       const animated = (n.kind !== "center" && draggingId !== n.id)
-        ? orbitPos(base, n.origin, animTick)
+        ? orbitPos(base, n.origin, animTick, pivot)
         : base;
       return [n.id, { ...n, ...animated }];
     })),
-    [nodes, pos, animTick, draggingId]
+    [nodes, pos, animTick, draggingId, clusterPivots]
   );
 
   const toLocal = (clientX: number, clientY: number) => {
@@ -514,7 +611,8 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const info = (selected && INSPECTOR[selected]) || null;
   const liveInfo = selected ? liveInspector[selected] : null;
   const selType = sel ? typeLabel[sel.etype] : "";
-  const centerNode = nodes.find(n => n.kind === "center");
+  const centerNodes = nodes.filter(n => n.kind === "center");
+  const centerNode = sel?.cluster ? centerNodes.find(n => n.label === sel.cluster) ?? centerNodes[0] : centerNodes[0];
 
   const ctlStyle: React.CSSProperties = {
     background: "transparent", border: "none", color: T.t2,
@@ -548,11 +646,11 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
             <filter id="gBlur8"><feGaussianBlur stdDeviation="8" /></filter>
           </defs>
 
-          {/* پالس مرکزی — نبض خورشید */}
+          {/* پالس مرکزی — فقط در حالت تک‌مرکزی پررنگ، در چندمرکزی محو */}
           <ellipse cx={CX} cy={CY} rx={75 + 18 * Math.sin(animTick / 900)} ry={75 + 18 * Math.sin(animTick / 900)}
-            fill={T.gold} opacity={0.05 + 0.04 * Math.sin(animTick / 900)} filter="url(#gBlur8)" />
-          <ellipse cx={CX} cy={CY} rx={48 + 8 * Math.sin(animTick / 700)} ry={48 + 8 * Math.sin(animTick / 700)}
-            fill={T.gold} opacity={0.08 + 0.06 * Math.sin(animTick / 700)} filter="url(#gBlur4)" />
+            fill={T.gold} opacity={(countryFilter ? 0.05 : 0.02) + 0.03 * Math.sin(animTick / 900)} filter="url(#gBlur8)" />
+          {countryFilter && <ellipse cx={CX} cy={CY} rx={48 + 8 * Math.sin(animTick / 700)} ry={48 + 8 * Math.sin(animTick / 700)}
+            fill={T.gold} opacity={0.08 + 0.06 * Math.sin(animTick / 700)} filter="url(#gBlur4)" />}
 
           <ellipse cx={CX} cy={CY - 30} rx={430} ry={340} fill="url(#ambient)" />
 
@@ -612,13 +710,14 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                 >
                   {n.kind === "center" ? (
                     <>
-                      <circle cx={n.x} cy={n.y} r={120} fill="url(#coreGlow)" />
-                      {/* حلقه‌ی مداری محیطی مرکز */}
-                      <ellipse cx={n.x} cy={n.y} rx={r + 28} ry={(r + 28) * 0.28}
+                      <circle cx={n.x} cy={n.y} r={r * 3.5 + 10 * Math.sin(animTick / 900 + n.x)}
+                        fill="url(#coreGlow)" opacity={0.8 + 0.2 * Math.sin(animTick / 900 + n.x)} />
+                      {/* حلقه‌ی مداری محیطی */}
+                      <ellipse cx={n.x} cy={n.y} rx={r + 20} ry={(r + 20) * 0.28}
                         fill="none" stroke={T.goldLine} strokeWidth={0.5} strokeOpacity={0.35}
                         transform={`rotate(-15 ${n.x} ${n.y})`} />
-                      <circle cx={n.x} cy={n.y} r={r + 13} fill="none" stroke={T.goldLine} strokeWidth={0.7}
-                        strokeOpacity={0.5 + 0.3 * Math.sin(animTick / 800)} />
+                      <circle cx={n.x} cy={n.y} r={r + 10} fill="none" stroke={T.goldLine} strokeWidth={0.7}
+                        strokeOpacity={0.5 + 0.3 * Math.sin(animTick / 800 + n.x)} />
                       <circle cx={n.x} cy={n.y} r={r} fill="url(#coreBody)" />
                     </>
                   ) : (
@@ -647,17 +746,46 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                   {/* حلقه hover */}
                   {n.id === hover && !isSel && <circle cx={n.x} cy={n.y} r={r + 5}
                     fill="none" stroke={c} strokeWidth={1} strokeOpacity={0.5} />}
-                  <text
-                    x={labelOnLeft ? n.x - r - 8 : n.x + r + 8} y={n.y + (n.kind === "center" ? 4 : 3.5)}
-                    textAnchor={labelOnLeft ? "end" : "start"}
-                    fill={isSel ? T.goldHi : n.kind === "entity" ? T.t2 : T.t1}
-                    style={{ fontSize: n.kind === "center" ? 17 : n.kind === "primary" ? 12 : n.kind === "report" ? 11 : 10, fontWeight: n.kind === "center" ? 700 : n.kind === "report" ? 600 : n.kind === "primary" ? 600 : 400, fontFamily: "YekanBakh, sans-serif", pointerEvents: "none" }}
-                  >{n.label}</text>
+                  {/* لیبل: برای موجودیت‌های عادی فقط هنگام hover یا انتخاب نشان بده */}
+                  {(n.kind !== "entity" || !dim || n.id === hover) && (
+                    <text
+                      x={labelOnLeft ? n.x - r - 8 : n.x + r + 8} y={n.y + (n.kind === "center" ? 4 : 3.5)}
+                      textAnchor={labelOnLeft ? "end" : "start"}
+                      fill={isSel ? T.goldHi : n.kind === "center" ? T.goldHi : n.kind === "entity" ? T.t2 : T.t1}
+                      style={{
+                        fontSize: n.kind === "center" ? Math.max(12, Math.min(18, 11 + (n.docCount ?? 0) / 20)) : n.kind === "primary" ? 12 : n.kind === "report" ? 11 : 9.5,
+                        fontWeight: n.kind === "center" ? 700 : n.kind === "report" ? 600 : n.kind === "primary" ? 600 : 400,
+                        fontFamily: "YekanBakh, sans-serif", pointerEvents: "none",
+                        textShadow: n.kind === "center" ? `0 0 8px ${toneColor[n.tone]}88` : "none",
+                      }}
+                    >{n.label}</text>
+                  )}
                 </g>
               );
             })}
           </g>
         </svg>
+
+        {/* چیپ‌های فیلتر کشور */}
+        {isLive && topCountries.length > 0 && (
+          <div style={{ position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 5, zIndex: 2, flexWrap: "wrap", maxWidth: "min(700px, calc(100% - 32px))", justifyContent: "center" }}>
+            <button
+              onClick={() => setCountryFilter(null)}
+              style={{ fontSize: 10, padding: "3px 12px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: countryFilter === null ? T.goldDim : "rgba(0,0,0,0.35)", color: countryFilter === null ? T.gold : T.t3, border: `1px solid ${countryFilter === null ? T.goldLine : T.hair}` }}>
+              همه
+            </button>
+            {topCountries.map(c => {
+              const active = countryFilter === c.country;
+              return (
+                <button key={c.country}
+                  onClick={() => setCountryFilter(active ? null : c.country)}
+                  style={{ fontSize: 10, padding: "3px 12px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: active ? "rgba(111,224,192,0.15)" : "rgba(0,0,0,0.35)", color: active ? T.mint : T.t2, border: `1px solid ${active ? "rgba(111,224,192,0.4)" : T.hair}` }}>
+                  {c.country}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* نوار کنترل */}
         <div className="panel" style={{ position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 4, padding: 5, borderRadius: T.rPill }}>
