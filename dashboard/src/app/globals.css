@@ -146,3 +146,113 @@ select option { background: var(--panel-solid); color: var(--text-1); }
 @media (max-width: 1180px) {
   .graph-legend { display: none !important; }
 }
+
+/* ─── Responsive layout utilities ──────────────────────────────────────────── */
+
+/* Grid responsive */
+.ds-grid           { display: grid; gap: 12px; }
+.ds-grid-2         { grid-template-columns: repeat(2, 1fr); }
+.ds-grid-3         { grid-template-columns: repeat(3, 1fr); }
+.ds-grid-4         { grid-template-columns: repeat(4, 1fr); }
+.ds-grid-auto      { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+@media (max-width: 1023px) {
+  .ds-grid-4       { grid-template-columns: repeat(2, 1fr); }
+  .ds-grid-3       { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 639px) {
+  .ds-grid-2,
+  .ds-grid-3,
+  .ds-grid-4       { grid-template-columns: 1fr; }
+  .ds-grid-auto    { grid-template-columns: 1fr; }
+}
+
+/* Flex utilities */
+.ds-flex           { display: flex; }
+.ds-flex-col       { display: flex; flex-direction: column; }
+.ds-flex-center    { display: flex; align-items: center; justify-content: center; }
+.ds-flex-between   { display: flex; align-items: center; justify-content: space-between; }
+.ds-flex-wrap      { flex-wrap: wrap; }
+.ds-gap-4          { gap: 4px; }
+.ds-gap-8          { gap: 8px; }
+.ds-gap-12         { gap: 12px; }
+.ds-gap-16         { gap: 16px; }
+.ds-gap-24         { gap: 24px; }
+
+/* Spacing */
+.ds-p-0            { padding: 0; }
+.ds-p-12           { padding: 12px; }
+.ds-p-16           { padding: 16px; }
+.ds-p-24           { padding: 24px; }
+.ds-px-16          { padding-inline: 16px; }
+.ds-px-24          { padding-inline: 24px; }
+.ds-py-12          { padding-block: 12px; }
+
+@media (max-width: 639px) {
+  .ds-px-24        { padding-inline: 12px; }
+  .ds-p-24         { padding: 12px; }
+}
+
+/* Typography */
+.ds-eyebrow        { font-size: 9px; font-weight: 600; color: var(--text-3); letter-spacing: .12em; text-transform: uppercase; margin: 0; }
+.ds-heading-lg     { font-size: 20px; font-weight: 700; color: var(--text-1); margin: 0; }
+.ds-heading-md     { font-size: 15px; font-weight: 700; color: var(--text-1); margin: 0; }
+.ds-heading-sm     { font-size: 12px; font-weight: 600; color: var(--text-1); margin: 0; }
+.ds-body           { font-size: 12px; color: var(--text-2); line-height: 1.7; }
+.ds-caption        { font-size: 10px; color: var(--text-3); }
+.ds-mono           { font-family: ui-monospace, monospace; font-size: 11px; }
+
+@media (max-width: 639px) {
+  .ds-heading-lg   { font-size: 16px; }
+  .ds-heading-md   { font-size: 13px; }
+}
+
+/* Surface */
+.ds-card           { background: var(--panel); backdrop-filter: blur(20px); border: 1px solid var(--hair); border-radius: var(--r-card); }
+.ds-card-solid     { background: var(--panel-solid); border: 1px solid var(--hair); border-radius: var(--r-card); }
+.ds-card-hover:hover { border-color: var(--hair-2); background: var(--panel-hi); transition: all .15s; }
+
+/* Width constraints */
+.ds-container      { max-width: 1200px; margin-inline: auto; width: 100%; }
+.ds-container-sm   { max-width: 720px;  margin-inline: auto; width: 100%; }
+
+/* Hide/show helpers */
+.ds-hide-mobile    { display: initial; }
+.ds-show-mobile    { display: none; }
+@media (max-width: 639px) {
+  .ds-hide-mobile  { display: none !important; }
+  .ds-show-mobile  { display: initial !important; }
+}
+.ds-hide-tablet    { display: initial; }
+@media (max-width: 1023px) {
+  .ds-hide-tablet  { display: none !important; }
+}
+
+/* Scrollable container */
+.ds-scroll-x       { overflow-x: auto; }
+.ds-scroll-y       { overflow-y: auto; }
+.ds-overflow-hidden{ overflow: hidden; }
+
+/* Metric strip */
+.ds-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (max-width: 1023px) {
+  .ds-metric-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 639px) {
+  .ds-metric-strip { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+}
+
+/* Page padding for content areas */
+.ds-page-pad       { padding: 20px 28px 24px; }
+.ds-page-pad-sm    { padding: 14px 16px 20px; }
+@media (max-width: 1023px) {
+  .ds-page-pad     { padding: 16px 16px 20px; }
+}
+@media (max-width: 639px) {
+  .ds-page-pad     { padding: 12px 10px 16px; }
+  .ds-page-pad-sm  { padding: 10px 10px 14px; }
+}

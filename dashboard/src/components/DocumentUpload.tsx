@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { T } from "@/lib/theme";
+import { Badge, Button, Card, Grid, Input, Select, Spinner, Stack } from "@/components/ds";
 
 type UploadState =
   | { phase: "idle" }
@@ -13,12 +14,6 @@ type UploadState =
 
 const COUNTRIES = ["پاکستان","افغانستان","چین","تایلند","اندونزی","ژاپن","بنگلادش","ترکیه","ایران","عراق","سوریه","لبنان","سایر"];
 const TOPICS    = ["","دین و مذاهب","روابط بین‌الملل و دیپلماسی","اقتصاد و توسعه","زنان، خانواده و جوانان","هنر، ادبیات و رسانه","سیاست و حکمرانی","آموزش و علم","حقوق، امنیت و بحران","تاریخ و میراث","فرهنگ و جامعه"];
-
-function Spinner() {
-  return (
-    <span style={{ display:"inline-block", width:14, height:14, border:`2px solid ${T.goldLine}`, borderTopColor:T.gold, borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
-  );
-}
 
 export default function DocumentUpload({ onDone }: { onDone?: () => void }) {
   const [state, setState] = useState<UploadState>({ phase: "idle" });
@@ -88,67 +83,49 @@ export default function DocumentUpload({ onDone }: { onDone?: () => void }) {
 
   const busy = state.phase === "reading" || state.phase === "extracting" || state.phase === "saving";
 
-  const inp: React.CSSProperties = {
-    background: "rgba(0,0,0,0.28)",
-    border: `1px solid ${T.hair}`,
-    borderRadius: 8,
-    padding: "9px 13px",
-    fontSize: 12,
-    color: T.t2,
-    fontFamily: "YekanBakh, sans-serif",
-    width: "100%",
-    outline: "none",
-    transition: "border-color .15s",
-  };
-
   return (
-    <div style={{ padding:"24px 28px", maxWidth:680, margin:"0 auto" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      <p style={{ fontSize:9.5, fontWeight:700, letterSpacing:".12em", color:T.gold, marginBottom:8 }}>DOCUMENT UPLOAD</p>
-      <h2 style={{ fontSize:20, fontWeight:700, color:T.t1, marginBottom:6 }}>آپلود مقاله به پایگاه دانش</h2>
-      <p style={{ fontSize:11.5, color:T.t3, marginBottom:24, lineHeight:1.7 }}>
+    <div style={{ maxWidth: 680, margin: "0 auto" }} className="ds-page-pad">
+      <p className="ds-eyebrow" style={{ marginBottom: 8 }}>DOCUMENT UPLOAD</p>
+      <h2 className="ds-heading-lg" style={{ marginBottom: 6 }}>آپلود مقاله به پایگاه دانش</h2>
+      <p className="ds-body" style={{ marginBottom: 24 }}>
         فایل را آپلود کنید — سیستم به‌طور خودکار موجودیت‌ها را استخراج می‌کند و سند در گراف، جستجو و دستیار قابل استفاده می‌شود.
       </p>
 
-      {/* ─── نتیجه ─── */}
+      {/* نتیجه */}
       {state.phase === "done" && (
-        <div style={{ background:"rgba(74,222,156,.07)", border:`1px solid rgba(74,222,156,.28)`, borderRadius:12, padding:"20px 22px", marginBottom:24 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-            <span style={{ fontSize:16 }}>✓</span>
-            <span style={{ fontSize:13, fontWeight:700, color:T.ok }}>
-              {state.duplicate ? "سند قبلاً موجود بود — تکراری" : "سند با موفقیت افزوده شد"}
-            </span>
-          </div>
-          <p style={{ fontSize:13.5, fontWeight:600, color:T.t1, marginBottom:10 }}>{state.title}</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
-            {[["کشور", state.country],["موضوع",state.topic],[`${state.entityCount} موجودیت`,"استخراج‌شده"]].map(([l,v])=>(
-              <div key={l} style={{ background:"rgba(0,0,0,.22)", borderRadius:8, padding:"8px 11px" }}>
-                <p style={{ fontSize:13, fontWeight:600, color:T.t1, margin:0 }}>{v}</p>
-                <p style={{ fontSize:9, color:T.t3, margin:"3px 0 0" }}>{l}</p>
+        <Card variant="glass" style={{ marginBottom: 24, borderColor: "rgba(74,222,156,.28)", background: "rgba(74,222,156,.05)" }}>
+          <Stack direction="row" gap={10} align="center" style={{ marginBottom: 14 }}>
+            <Badge label={state.duplicate ? "تکراری" : "افزوده شد"} tone={state.duplicate ? "warn" : "ok"} dot />
+            <span className="ds-heading-sm">{state.title}</span>
+          </Stack>
+          <Grid cols={3} gap={8} style={{ marginBottom: 12 }}>
+            {([["کشور", state.country], ["موضوع", state.topic], [`${state.entityCount} موجودیت`, "استخراج‌شده"]] as [string,string][]).map(([l, v]) => (
+              <div key={l} className="ds-card-solid" style={{ padding: "8px 11px", borderRadius: "var(--r-ctl)" }}>
+                <p className="ds-heading-sm" style={{ marginBottom: 3 }}>{v}</p>
+                <p className="ds-caption">{l}</p>
               </div>
             ))}
-          </div>
-          {state.summary && <p style={{ fontSize:11, color:T.t2, lineHeight:1.75, marginBottom:14 }}>{state.summary}</p>}
-          <button onClick={reset} style={{ fontSize:11, color:T.gold, background:T.goldDim, border:`1px solid ${T.goldLine}`, borderRadius:8, padding:"7px 18px", cursor:"pointer", fontFamily:"YekanBakh,sans-serif" }}>
-            آپلود مقاله جدید
-          </button>
-        </div>
+          </Grid>
+          {state.summary && <p className="ds-body" style={{ marginBottom: 14 }}>{state.summary}</p>}
+          <Button variant="primary" tone="gold" onClick={reset}>آپلود مقاله جدید</Button>
+        </Card>
       )}
 
       {state.phase === "error" && (
-        <div style={{ background:"rgba(240,112,112,.07)", border:`1px solid rgba(240,112,112,.28)`, borderRadius:10, padding:"14px 18px", marginBottom:20, display:"flex", gap:12, alignItems:"flex-start" }}>
-          <span>⚠</span>
-          <div>
-            <p style={{ fontSize:12, color:T.bad, fontWeight:600, margin:0 }}>{state.message}</p>
-            <button onClick={() => setState({ phase:"idle" })} style={{ fontSize:10.5, color:T.t3, background:"none", border:"none", cursor:"pointer", padding:0, marginTop:6, fontFamily:"YekanBakh,sans-serif" }}>بستن</button>
-          </div>
-        </div>
+        <Card variant="glass" style={{ marginBottom: 20, borderColor: "rgba(232,105,122,.28)", background: "rgba(232,105,122,.05)" }}>
+          <Stack direction="row" gap={12} align="flex-start">
+            <span style={{ color: "var(--bad)", fontSize: 16 }}>⚠</span>
+            <Stack gap={6}>
+              <p className="ds-body" style={{ color: "var(--bad)", fontWeight: 600, margin: 0 }}>{state.message}</p>
+              <Button variant="ghost" size="sm" onClick={() => setState({ phase: "idle" })}>بستن</Button>
+            </Stack>
+          </Stack>
+        </Card>
       )}
 
       {state.phase !== "done" && (
-        <>
-          {/* ─── ناحیه drop ─── */}
+        <Stack gap={12}>
+          {/* ناحیه drop */}
           <div
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -156,89 +133,77 @@ export default function DocumentUpload({ onDone }: { onDone?: () => void }) {
             onClick={() => !file && inputRef.current?.click()}
             style={{
               border: `1.5px dashed ${file ? T.goldLine : dragging ? T.mint : T.hair}`,
-              borderRadius:12, padding:"28px 20px", textAlign:"center",
+              borderRadius: 12, padding: "28px 20px", textAlign: "center",
               background: file ? T.goldDim : dragging ? "rgba(111,224,192,.06)" : "rgba(0,0,0,.18)",
-              cursor: file ? "default" : "pointer", marginBottom:18,
-              transition:"all .15s",
+              cursor: file ? "default" : "pointer", transition: "all .15s",
             }}>
-            <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.html" style={{ display:"none" }}
+            <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.html" style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) acceptFile(f); }} />
-
             {file ? (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12 }}>
-                <span style={{ fontSize:28 }}>📄</span>
-                <div style={{ textAlign:"right" }}>
-                  <p style={{ fontSize:13, fontWeight:600, color:T.gold, margin:0 }}>{file.name}</p>
-                  <p style={{ fontSize:10.5, color:T.t3, margin:"4px 0 0" }}>{(file.size/1024).toFixed(0)} KB</p>
-                </div>
-                <button onClick={e => { e.stopPropagation(); setFile(null); setState({ phase:"idle" }); }}
-                  style={{ marginRight:"auto", background:"none", border:"none", color:T.t3, fontSize:18, cursor:"pointer", lineHeight:1 }}>×</button>
-              </div>
+              <Stack direction="row" align="center" justify="center" gap={12}>
+                <span style={{ fontSize: 28 }}>📄</span>
+                <Stack gap={4} style={{ textAlign: "right" }}>
+                  <p className="ds-heading-sm" style={{ color: "var(--gold)" }}>{file.name}</p>
+                  <p className="ds-caption">{(file.size / 1024).toFixed(0)} KB</p>
+                </Stack>
+                <button onClick={e => { e.stopPropagation(); setFile(null); setState({ phase: "idle" }); }}
+                  style={{ marginRight: "auto", background: "none", border: "none", color: T.t3, fontSize: 18, cursor: "pointer" }}>×</button>
+              </Stack>
             ) : (
-              <>
-                <div style={{ width:44, height:44, background:T.goldDim, border:`1px solid ${T.goldLine}`, borderRadius:10, display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:20, marginBottom:10 }}>📤</div>
-                <p style={{ fontSize:13, color:T.t2, margin:"0 0 4px" }}>فایل را اینجا بکش یا کلیک کن</p>
-                <p style={{ fontSize:10.5, color:T.t3 }}>PDF · DOCX · TXT · HTML — حداکثر ۱۵ مگابایت</p>
-              </>
+              <Stack gap={6} align="center">
+                <div style={{ width: 44, height: 44, background: T.goldDim, border: `1px solid ${T.goldLine}`, borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📤</div>
+                <p className="ds-body">فایل را اینجا بکش یا کلیک کن</p>
+                <p className="ds-caption">PDF · DOCX · TXT · HTML — حداکثر ۱۵ مگابایت</p>
+              </Stack>
             )}
           </div>
 
-          {/* ─── متادیتا ─── */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <p style={{ fontSize:9.5, color:T.t3, fontWeight:600, marginBottom:5 }}>کشور</p>
-              <select value={country} onChange={e => setCountry(e.target.value)} style={{ ...inp }}>
-                <option value="">تشخیص خودکار (پیشنهادی)</option>
-                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <p style={{ fontSize:9.5, color:T.t3, fontWeight:600, marginBottom:5 }}>تاریخ گزارش</p>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                style={{ ...inp, colorScheme:"dark" }} />
-            </div>
-          </div>
-          <div style={{ marginBottom:20 }}>
-            <p style={{ fontSize:9.5, color:T.t3, fontWeight:600, marginBottom:5 }}>موضوع اصلی</p>
-            <select value={topic} onChange={e => setTopic(e.target.value)} style={{ ...inp }}>
+          {/* متادیتا */}
+          <Grid cols={2} gap={10}>
+            <Select label="کشور" value={country} onChange={e => setCountry(e.target.value)}>
               <option value="">تشخیص خودکار (پیشنهادی)</option>
-              {TOPICS.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <Input label="تاریخ گزارش" type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ colorScheme: "dark" }} />
+          </Grid>
+          <Select label="موضوع اصلی" value={topic} onChange={e => setTopic(e.target.value)}>
+            <option value="">تشخیص خودکار (پیشنهادی)</option>
+            {TOPICS.filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
+          </Select>
 
-          {/* ─── وضعیت پردازش ─── */}
+          {/* وضعیت پردازش */}
           {busy && (
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", background:"rgba(0,0,0,.22)", border:`1px solid ${T.hair}`, borderRadius:10, marginBottom:16 }}>
-              <Spinner />
-              <div>
-                <p style={{ fontSize:12, color:T.t1, margin:0, fontWeight:600 }}>
-                  {state.phase === "reading"    ? "در حال خواندن فایل…"           :
-                   state.phase === "extracting" ? "در حال استخراج با هوش مصنوعی…" :
-                                                  "در حال ذخیره در پایگاه دانش…"}
-                </p>
-                <p style={{ fontSize:10, color:T.t3, margin:"3px 0 0" }}>این فرایند ممکن است ۳۰–۹۰ ثانیه طول بکشد</p>
-              </div>
-            </div>
+            <Card variant="solid" style={{ padding: "12px 16px" }}>
+              <Stack direction="row" gap={10} align="center">
+                <Spinner tone="gold" />
+                <Stack gap={3}>
+                  <p className="ds-heading-sm">
+                    {state.phase === "reading" ? "در حال خواندن فایل…"
+                      : state.phase === "extracting" ? "در حال استخراج با هوش مصنوعی…"
+                      : "در حال ذخیره در پایگاه دانش…"}
+                  </p>
+                  <p className="ds-caption">این فرایند ممکن است ۳۰–۹۰ ثانیه طول بکشد</p>
+                </Stack>
+              </Stack>
+            </Card>
           )}
 
-          <button
-            onClick={submit}
+          <Button
+            variant={file && !busy ? "primary" : "outline"}
+            tone="gold"
+            size="lg"
+            fullWidth
+            loading={busy}
             disabled={!file || busy}
-            style={{
-              width:"100%", padding:"11px 0", borderRadius:10, fontSize:13, fontWeight:700,
-              fontFamily:"YekanBakh,sans-serif", cursor: file && !busy ? "pointer" : "not-allowed",
-              background: file && !busy ? T.goldDim : "rgba(0,0,0,.2)",
-              border: `1px solid ${file && !busy ? T.goldLine : T.hair}`,
-              color: file && !busy ? T.gold : T.t3,
-              transition:"all .15s",
-            }}>
+            onClick={submit}>
             {busy ? "در حال پردازش…" : "استخراج و افزودن به پایگاه دانش"}
-          </button>
+          </Button>
 
-          <p style={{ fontSize:10, color:T.t3, marginTop:10, textAlign:"center", lineHeight:1.6 }}>
+          <p className="ds-caption" style={{ textAlign: "center", lineHeight: 1.7 }}>
             پس از افزودن، سند در گراف هوشمند، جستجوی معنایی و دستیار هوشمند قابل استفاده است.
           </p>
-        </>
+        </Stack>
       )}
     </div>
   );

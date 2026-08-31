@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { T } from "@/lib/theme";
+import { Badge, MetricCard, StatusDot } from "@/components/ds";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
@@ -827,14 +829,7 @@ export default function Dashboard() {
   const [vaultTotal, setVaultTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const { isMobile, isSmall } = useBreakpoint();
 
   useEffect(() => {
     Promise.all([
@@ -911,24 +906,18 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span style={{
-              display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: T.ok,
-              border: `1px solid ${T.ok}33`, borderRadius: T.rPill, padding: "4px 11px",
-            }}>
-              <span className="anim-dot" style={{ width: 5, height: 5, borderRadius: "50%", background: T.ok, display: "inline-block" }} />
-              فعال
-            </span>
-            {!isMobile && <Pill label="محیط توسعه" tone={T.warn} />}
+            <Badge label="فعال" tone="ok" dot />
+            {!isSmall && <Badge label="محیط توسعه" tone="warn" />}
           </div>
         </header>
 
         {/* Metric strip */}
         {(active === "chat" || active === "documents") && (
-          <div style={{ padding: `0 ${isMobile ? "10px" : "26px"} 4px`, display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 8, flexShrink: 0 }}>
-            <Metric label="یادداشت‌ها"        value={loading ? "—" : vaultTotal} unit="یادداشت" tone={T.rose} />
-            <Metric label="قطعه‌ی قابل جستجو" value={loading ? "—" : indexed}    unit="قطعه"   tone={T.mint} />
-            <Metric label="سند نمایه‌شده"     value={loading ? "—" : (indexedDocs ?? "—")} unit="سند" tone={T.lavender} />
-            <Metric label="سیگنال اجتماعی"    value={loading ? "—" : orgSigs}    unit="سیگنال" tone={T.gold} />
+          <div className="ds-metric-strip" style={{ padding: `0 ${isSmall ? "10px" : "26px"} 8px`, flexShrink: 0 }}>
+            <MetricCard label="یادداشت‌ها"        value={loading ? "—" : vaultTotal} unit="یادداشت" tone="rose" />
+            <MetricCard label="قطعه‌ی قابل جستجو" value={loading ? "—" : indexed}    unit="قطعه"   tone="mint" />
+            <MetricCard label="سند نمایه‌شده"     value={loading ? "—" : (indexedDocs ?? "—")} unit="سند" tone="lavender" />
+            <MetricCard label="سیگنال اجتماعی"    value={loading ? "—" : orgSigs}    unit="سیگنال" tone="gold" />
           </div>
         )}
 
@@ -939,7 +928,10 @@ export default function Dashboard() {
           // پنل‌های بلند (مثل بازرس گراف) کل صفحه را از ویوپورت بیرون می‌برند.
           minHeight: 0,
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
-          padding: active === "chat" ? "12px 0 0" : (active === "graph" || active === "world" || active === "coverage") ? 0 : active === "upload" ? "24px" : "14px 26px 22px",
+          padding: active === "chat" ? "12px 0 0"
+            : (active === "graph" || active === "world" || active === "coverage") ? 0
+            : active === "upload" ? (isSmall ? "12px 10px" : "24px 28px")
+            : (isSmall ? "10px 10px 16px" : "14px 26px 22px"),
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
           {active === "coverage"  && <KnowledgeCoverage />}
