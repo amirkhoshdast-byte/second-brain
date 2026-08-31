@@ -8,6 +8,7 @@ import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
 import DocumentUpload from "@/components/DocumentUpload";
+import AdminPanel from "@/components/AdminPanel";
 import dynamic from "next/dynamic";
 const JarvisOrb = dynamic(() => import("@/components/JarvisOrb"), { ssr: false });
 
@@ -148,6 +149,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
     { id: "documents", icon: "▦", label: "اسناد نمایه‌شده",   badge: counts.qdrant },
     { id: "upload",    icon: "⊕", label: "آپلود مقاله",        badge: undefined },
+    { id: "admin",     icon: "⚙", label: "مدیریت",             badge: undefined },
   ];
 
   return (
@@ -930,7 +932,7 @@ export default function Dashboard() {
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
           padding: active === "chat" ? "12px 0 0"
             : (active === "graph" || active === "world" || active === "coverage") ? 0
-            : active === "upload" ? (isSmall ? "12px 10px" : "24px 28px")
+            : (active === "upload" || active === "admin") ? 0
             : (isSmall ? "10px 10px 16px" : "14px 26px 22px"),
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
@@ -940,7 +942,16 @@ export default function Dashboard() {
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}
           {active === "search"    && <SearchPanel />}
           {active === "documents" && <DocumentsPanel docs={docs} loading={loading} />}
-          {active === "upload"    && <DocumentUpload onDone={() => {}} />}
+          {active === "upload"    && (
+            <div style={{ overflowY: "auto", height: "100%", flex: 1 }}>
+              <DocumentUpload onDone={() => {}} />
+            </div>
+          )}
+          {active === "admin"     && (
+            <div style={{ overflowY: "auto", height: "100%", flex: 1 }}>
+              <AdminPanel />
+            </div>
+          )}
         </div>
       </main>
     </div>
