@@ -32,6 +32,7 @@ type VaultFile = { path: string; name: string; folder: string };
 type Message = {
   role: "user" | "assistant"; content: string;
   sources?: Array<{ title: string; folder: string; score: number; path?: string }>;
+  done?: boolean;
 };
 
 
@@ -247,8 +248,24 @@ function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<Record<number, 1 | -1>>({});
   // مقاله‌ای که کاربر از روی چیپ منبع باز کرده
   const [article, setArticle] = useState<{ path: string; title: string; text: string | null } | null>(null);
+
+  const sendFeedback = async (idx: number, rating: 1 | -1) => {
+    if (feedback[idx]) return;
+    setFeedback(prev => ({ ...prev, [idx]: rating }));
+    const msg = messages[idx];
+    const userMsg = messages.slice(0, idx).filter(m => m.role === "user").at(-1);
+    if (!msg || !userMsg) return;
+    try {
+      await fetch("/api/rag/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: userMsg.content, answer: msg.content, rating, sources: msg.sources ?? [] }),
+      });
+    } catch {}
+  };
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -287,7 +304,7 @@ function ChatPanel() {
           try {
             const j = JSON.parse(line.slice(5));
             if (j.token) { text += j.token; setMessages((m) => [...m.slice(0, -1), { role: "assistant", content: text, sources }]); }
-            if (j.done)  { sources = j.sources ?? []; setMessages((m) => [...m.slice(0, -1), { role: "assistant", content: text, sources }]); }
+            if (j.done)  { sources = j.sources ?? []; setMessages((m) => [...m.slice(0, -1), { role: "assistant", content: text, sources, done: true }]); }
             if (j.error) { text = `خطا: ${j.error}`; setMessages((m) => [...m.slice(0, -1), { role: "assistant", content: text }]); }
           } catch {}
         }
@@ -406,6 +423,38 @@ function ChatPanel() {
                         <span style={{ fontFamily: "monospace", color: T.gold }}>{s.score?.toFixed(2)}</span>
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* دکمه‌های بازخورد — فقط برای پیام‌های دستیار که کامل شده‌اند */}
+                {!isUser && m.done && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <span style={{ fontSize: 9, color: T.t3 }}>این پاسخ مفید بود؟</span>
+                    {([1, -1] as const).map(r => {
+                      const voted = feedback[i];
+                      const isThis = voted === r;
+                      const icon = r === 1 ? "👍" : "👎";
+                      return (
+                        <button key={r}
+                          onClick={() => sendFeedback(i, r)}
+                          disabled={!!voted}
+                          title={r === 1 ? "مفید بود" : "مفید نبود"}
+                          style={{
+                            fontSize: 13, padding: "2px 7px", borderRadius: T.rPill,
+                            border: `1px solid ${isThis ? (r === 1 ? "rgba(74,222,156,0.5)" : "rgba(239,68,68,0.5)") : T.hair}`,
+                            background: isThis ? (r === 1 ? "rgba(74,222,156,0.12)" : "rgba(239,68,68,0.12)") : "transparent",
+                            cursor: voted ? "default" : "pointer",
+                            opacity: voted && !isThis ? 0.3 : 1,
+                            transition: "all 0.15s",
+                          }}
+                        >{icon}</button>
+                      );
+                    })}
+                    {feedback[i] && (
+                      <span style={{ fontSize: 9, color: feedback[i] === 1 ? T.ok : T.bad }}>
+                        {feedback[i] === 1 ? "ممنون!" : "ثبت شد"}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

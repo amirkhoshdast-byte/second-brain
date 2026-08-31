@@ -23,7 +23,7 @@ type DocRow = {
 
 type EntityRow = { id: number; etype: string; name: string; doc_count: number };
 
-type Tab = "overview" | "documents" | "entities";
+type Tab = "overview" | "documents" | "entities" | "feedback";
 
 const ETYPES = ["", "person", "org", "event", "topic", "country"];
 const COUNTRIES = ["", "پاکستان", "افغانستان", "چین", "تایلند", "اندونزی", "ژاپن", "بنگلادش", "ترکیه", "ایران"];
@@ -440,6 +440,94 @@ function EntitiesTab() {
   );
 }
 
+// ─── Feedback Tab ──────────────────────────────────────────────────────────────
+
+type FeedbackStats = {
+  positive: number; negative: number; total: number; satisfaction: number | null;
+  recent: Array<{ id: number; question: string; rating: number; created_at: string }>;
+  worst: Array<{ question: string; answer: string; created_at: string }>;
+};
+
+function FeedbackTab() {
+  const [data, setData] = useState<FeedbackStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showWorst, setShowWorst] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/rag/feedback").then(r => r.json()).then(d => { setData(d); setLoading(false); });
+  }, []);
+
+  if (loading) return <Stack align="center" justify="center" style={{ minHeight: 200 }}><Spinner size={24} /></Stack>;
+  if (!data) return null;
+
+  const pct = data.satisfaction;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* KPI */}
+      <div className="ds-metric-strip">
+        <MetricCard label="کل بازخورد" value={data.total} unit="رأی" tone="sky" />
+        <MetricCard label="مثبت 👍" value={data.positive} unit="رأی" tone="mint" />
+        <MetricCard label="منفی 👎" value={data.negative} unit="رأی" tone="rose" />
+        <MetricCard label="رضایت" value={pct !== null ? `${pct}٪` : "—"} tone="gold" />
+      </div>
+
+      {data.total === 0 ? (
+        <EmptyState icon="◈" title="هنوز بازخوردی ثبت نشده" description="بعد از هر پاسخ دستیار، دکمه‌های 👍/👎 نمایش داده می‌شوند." />
+      ) : (
+        <>
+          {/* رضایت بار */}
+          {pct !== null && (
+            <Card>
+              <p className="ds-label" style={{ marginBottom: 10 }}>نرخ رضایت کلی</p>
+              <div style={{ height: 10, borderRadius: 5, background: "var(--hair)", overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: pct >= 70 ? "var(--ok)" : pct >= 40 ? "var(--warn)" : "var(--bad)", borderRadius: 5, transition: "width 0.4s" }} />
+              </div>
+              <p style={{ fontSize: 10, color: "var(--t3)", marginTop: 6 }}>{data.positive} مثبت از {data.total} رأی</p>
+            </Card>
+          )}
+
+          {/* آخرین بازخوردها */}
+          <div>
+            <p className="ds-label" style={{ marginBottom: 10 }}>آخرین بازخوردها</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {data.recent.map(r => (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "var(--panel-solid)", border: "1px solid var(--hair)" }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{r.rating === 1 ? "👍" : "👎"}</span>
+                  <span style={{ flex: 1, fontSize: 11, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.question}</span>
+                  <span style={{ fontSize: 9, color: "var(--t3)", flexShrink: 0 }}>{new Date(r.created_at).toLocaleDateString("fa-IR")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* پاسخ‌های ضعیف */}
+          {data.worst.length > 0 && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <p className="ds-label">{`پرسش‌های با رأی منفی (${data.worst.length})`}</p>
+                <Button variant="ghost" size="sm" onClick={() => setShowWorst(v => !v)}>
+                  {showWorst ? "پنهان" : "نمایش"}
+                </Button>
+              </div>
+              {showWorst && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {data.worst.map((w, i) => (
+                    <Card key={i} variant="solid">
+                      <p style={{ fontSize: 10, fontWeight: 600, color: "var(--bad)", marginBottom: 4 }}>❌ {w.question}</p>
+                      <p style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.7, margin: 0 }}>{w.answer.slice(0, 200)}{w.answer.length > 200 ? "…" : ""}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function AdminPanel() {
@@ -455,6 +543,7 @@ export default function AdminPanel() {
     { id: "overview",  label: "نمای کلی",    icon: "◍" },
     { id: "documents", label: "اسناد",        icon: "▦" },
     { id: "entities",  label: "موجودیت‌ها",  icon: "⬡" },
+    { id: "feedback",  label: "بازخورد",      icon: "◈" },
   ];
 
   return (
@@ -507,6 +596,7 @@ export default function AdminPanel() {
           {tab === "overview"  && stats && <OverviewTab stats={stats} />}
           {tab === "documents" && <DocumentsTab />}
           {tab === "entities"  && <EntitiesTab />}
+          {tab === "feedback"  && <FeedbackTab />}
         </>
       )}
     </div>
