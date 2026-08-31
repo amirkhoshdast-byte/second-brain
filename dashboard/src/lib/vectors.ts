@@ -56,3 +56,85 @@ export async function search(vector: number[], limit = 5, scoreThreshold?: numbe
   const d = await qdrant(`/collections/${COLLECTION}/points/search`, "POST", body);
   return d.result ?? [];
 }
+
+/**
+ * جستجوی کلیدواژه‌ای روی chunk_text و title.
+ * نیازمند payload index از نوع text روی این فیلدها است (یک‌بار از طریق API ایجاد شده).
+ */
+export async function keywordSearch(query: string, limit = 12): Promise<SearchHit[]> {
+  // کلمات معنادار را استخراج کن (stop-words فارسی و عربی حذف می‌شوند)
+  const STOP = new Set(["و","در","به","از","که","این","با","را","است","یک","آن","ها","می","هم","تا","اما","برای","یا","هر","نیز","بر","شد","شده"]);
+  const words = query.trim().split(/\s+/).filter(w => w.length > 1 && !STOP.has(w));
+  if (!words.length) return [];
+
+  // Qdrant full-text: هر کلمه باید در متن باشد (AND)
+  const filter = {
+    must: words.slice(0, 6).map(w => ({
+      key: "chunk_text",
+      match: { text: w },
+    })),
+  };
+
+  try {
+    const d = await qdrant(`/collections/${COLLECTION}/points/scroll`, "POST", {
+      filter,
+      limit,
+      with_payload: true,
+      with_vector: false,
+    });
+    // scroll نتیجه بدون score برمی‌گردد؛ score ثابت ۰.۵ برای RRF کافی است
+    return (d.result?.points ?? []).map((p: Record<string, unknown>) => ({
+      ...p,
+      score: 0.5,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+type SearchHit = Record<string, unknown>;
+
+/**
+ * Reciprocal Rank Fusion — ترکیب دو لیست رتبه‌بندی‌شده.
+ *
+ * k=60 مقدار استاندارد RRF است. هر نتیجه امتیاز 1/(k+rank) می‌گیرد
+ * و امتیازها از هر دو لیست جمع می‌شوند.
+ */
+function rrf(lists: SearchHit[][], k = 60, topN = 8): SearchHit[] {
+  const scores = new Map<string, { hit: SearchHit; score: number }>();
+
+  for (const list of lists) {
+    list.forEach((hit, rank) => {
+      const id = String(hit.id);
+      const prev = scores.get(id)?.score ?? 0;
+      scores.set(id, { hit, score: prev + 1 / (k + rank + 1) });
+    });
+  }
+
+  return Array.from(scores.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map(({ hit, score }) => ({ ...hit, score }));
+}
+
+/**
+ * Hybrid search = dense vector + keyword → RRF merge.
+ *
+ * این تابع جایگزین `search()` در RAG pipeline می‌شود.
+ * بدون re-index کار می‌کند چون از payload index موجود استفاده می‌کند.
+ */
+export async function hybridSearch(
+  query: string,
+  vector: number[],
+  limit = 8,
+): Promise<SearchHit[]> {
+  const [dense, keyword] = await Promise.all([
+    search(vector, 16, 0.25),
+    keywordSearch(query, 16),
+  ]);
+
+  // اگر keyword هیچ نتیجه‌ای نداشت، فقط dense برگردان
+  if (!keyword.length) return dense.slice(0, limit);
+
+  return rrf([dense, keyword], 60, limit);
+}

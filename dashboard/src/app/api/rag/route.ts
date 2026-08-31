@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OLLAMA_URL, embed, search } from "@/lib/vectors";
+import { OLLAMA_URL, embed, hybridSearch } from "@/lib/vectors";
 
 const CHAT_MODEL = "qwen3:8b";
 
@@ -32,14 +32,9 @@ export async function POST(req: NextRequest) {
     : question;
   const conversation = history.map(t => `${t.role === "user" ? "کاربر" : "دستیار"}: ${t.content}`).join("\n");
 
-  // ۱. embed پرسش کامل‌شده با زمینهٔ گفتگو
+  // ۱. embed + hybrid search (dense + keyword → RRF)
   const vector = await embed(retrievalQuery);
-
-  // ۲. بازیابی context از Qdrant
-  //
-  // chunkهای پرامتیاز اغلب از یک سند می‌آیند، پس بیش از نیاز بازیابی می‌کنیم تا
-  // پس از یکتاسازی همچنان چند سند متمایز باقی بماند.
-  const hits = await search(vector, 12, 0.3);
+  const hits = await hybridSearch(retrievalQuery, vector, 12);
   if (hits.length === 0) {
     const enc = new TextEncoder();
     const s = new ReadableStream({
@@ -69,21 +64,24 @@ export async function POST(req: NextRequest) {
     if (unique.length >= MAX_SOURCES) break;
   }
 
-  // ۴. ساخت context
+  // ۴. ساخت context با متادیتای کامل‌تر
   const contextParts = unique.map((h: Record<string, unknown>, i: number) => {
     const p = h.payload as Record<string, string>;
     const text = p.chunk_text ?? p.text_preview ?? "";
-    return `[منبع ${i + 1}: ${p.title ?? p.name ?? "—"} | ${p.folder ?? ""}]\n${text}`;
+    const meta = [p.folder, p.country, p.report_date].filter(Boolean).join(" | ");
+    return `[منبع ${i + 1}: ${p.title ?? p.name ?? "—"}${meta ? ` (${meta})` : ""}]\n${text}`;
   });
   const context = contextParts.join("\n\n---\n\n");
 
-  const systemPrompt = `تو یک دستیار تحلیلگر هوشمند سازمانی هستی.
-پاسخ‌هایت باید:
-- بر اساس اسناد ارائه‌شده باشد
-- اگر اطلاعات در اسناد نیست، صادقانه بگو «در اسناد موجود اطلاعاتی پیدا نشد»
-- منابع را با [منبع N] ارجاع بده
-- پاسخ را به فارسی بده
-- اگر پرسش کاربر پیگیریِ پرسش قبل است، موضوع پرسش قبل را حفظ کن مگر کاربر صریحاً موضوع را عوض کرده باشد`;
+  const systemPrompt = `تو یک دستیار تحلیلگر هوشمند سازمانی هستی که به پایگاه دانش سازمان فرهنگ و ارتباطات اسلامی دسترسی داری.
+
+قوانین پاسخ‌دهی:
+۱. **فقط از اسناد ارائه‌شده پاسخ بده** — اگر پاسخ در اسناد نیست، صریح بگو: «اطلاعات کافی در اسناد موجود یافت نشد.» و پیشنهاد بده کاربر سوال را دقیق‌تر بپرسد.
+۲. **هر ادعا را به منبع وصل کن** — از [منبع N] استفاده کن. بدون منبع، ادعا نکن.
+۳. **اطلاعات دانش عمومی را با اسناد قاطی نکن** — اگر چیزی از خودت می‌دانی ولی در اسناد نیست، آن را جدا و با عبارت «براساس دانش عمومی:» مشخص کن.
+۴. **پاسخ ساختارمند** — برای سوال‌های چندگانه، هر بخش را جداگانه جواب بده.
+۵. **پیگیری مکالمه** — اگر سوال کوتاه است، موضوع قبلی را حفظ کن مگر کاربر صریحاً تغییر دهد.
+۶. **پاسخ را فارسی بنویس** — اسامی خاص و اصطلاحات تخصصی می‌توانند انگلیسی بمانند.`;
 
   const userPrompt = `${conversation ? `تاریخچهٔ کوتاه گفتگو:\n${conversation}\n\n---\n` : ""}اسناد مرتبط:\n\n${context}\n\n---\nسوال فعلی: ${question}`;
 
