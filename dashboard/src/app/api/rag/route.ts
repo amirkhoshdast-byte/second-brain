@@ -22,6 +22,42 @@ function cleanHistory(value: unknown): ChatTurn[] {
   });
 }
 
+/**
+ * HyDE — Hypothetical Document Embedding
+ *
+ * برای سوال‌های کوتاه یا مبهم، LLM یک پاسخ فرضی ۱–۲ جمله‌ای می‌سازد.
+ * آن پاسخ به جای سوال اصلی embed می‌شود؛ چون فضای معنایی پاسخ به اسناد
+ * واقعی نزدیک‌تر از فضای سوال است.
+ * اگر تولید پاسخ فرضی طولانی شود یا خطا بدهد، به query اصلی برمی‌گردیم.
+ */
+async function hydeExpand(query: string): Promise<string> {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: CHAT_MODEL,
+        stream: false,
+        options: { num_predict: 120, temperature: 0.3 },
+        messages: [
+          {
+            role: "system",
+            content: "یک متخصص تحلیل‌گر هستی. به پرسش زیر یک پاسخ فرضی کوتاه (۱–۲ جمله، حداکثر ۸۰ کلمه) بنویس. فرض کن چنین سندی وجود دارد. فقط پاسخ را بنویس، هیچ توضیح اضافه‌ای نده.",
+          },
+          { role: "user", content: query },
+        ],
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return query;
+    const d = await res.json();
+    const text = (d.message?.content ?? "").trim();
+    return text.length > 20 ? text : query;
+  } catch {
+    return query;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { question, history: rawHistory } = await req.json();
   if (!question?.trim()) return NextResponse.json({ error: "سوال خالی است" }, { status: 400 });
@@ -32,8 +68,12 @@ export async function POST(req: NextRequest) {
     : question;
   const conversation = history.map(t => `${t.role === "user" ? "کاربر" : "دستیار"}: ${t.content}`).join("\n");
 
-  // ۱. embed + hybrid search (dense + keyword → RRF)
-  const vector = await embed(retrievalQuery);
+  // ۱. HyDE — فقط برای سوال‌های کوتاه (< 30 کاراکتر) که embedding ضعیف دارند
+  const isShort = question.trim().length < 30;
+  const embedQuery = isShort ? await hydeExpand(retrievalQuery) : retrievalQuery;
+
+  // ۲. embed + hybrid search (dense از HyDE + keyword از query اصلی → RRF)
+  const vector = await embed(embedQuery);
   const hits = await hybridSearch(retrievalQuery, vector, 12);
   if (hits.length === 0) {
     const enc = new TextEncoder();
