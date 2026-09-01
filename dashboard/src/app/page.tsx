@@ -224,6 +224,28 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
         })}
       </nav>
 
+      {/* خروج */}
+      <div style={{ padding: "10px 10px 14px", borderTop: `1px solid ${T.hair}` }}>
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 12px", borderRadius: T.rCtl,
+            background: "transparent", border: `1px solid transparent`,
+            color: T.t3, cursor: "pointer", fontSize: 11.5,
+            fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.06)"; e.currentTarget.style.color = "#ef4444"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.t3; }}
+        >
+          <span style={{ fontSize: 11 }}>⎋</span>
+          خروج از سیستم
+        </button>
+      </div>
+
     </aside>
   );
 }
