@@ -1,35 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
 
 const SECRET = process.env.AUTH_SECRET ?? "fallback-secret";
 const COOKIE = "sb_session";
 const PUBLIC  = ["/login", "/api/auth/login"];
 
-function verifyToken(token: string): boolean {
+async function verifyToken(token: string): Promise<boolean> {
   try {
-    const decoded = Buffer.from(token, "base64").toString();
-    const parts = decoded.split(":");
-    if (parts.length < 3) return false;
-    const sig = parts.pop()!;
-    const payload = parts.join(":");
-    const expected = createHmac("sha256", SECRET).update(payload).digest("hex");
-    return sig === expected;
+    const decoded = atob(token);
+    const lastColon = decoded.lastIndexOf(":");
+    if (lastColon < 0) return false;
+    const payload = decoded.slice(0, lastColon);
+    const sig     = decoded.slice(lastColon + 1);
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false, ["verify"]
+    );
+    const sigBytes = Uint8Array.from(sig.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+    return crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(payload));
   } catch {
     return false;
   }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // مسیرهای عمومی
   if (PUBLIC.some(p => pathname.startsWith(p))) return NextResponse.next();
 
-  // بررسی cookie
   const token = req.cookies.get(COOKIE)?.value ?? "";
-  if (verifyToken(token)) return NextResponse.next();
+  if (await verifyToken(token)) return NextResponse.next();
 
-  // redirect به صفحه ورود
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   return NextResponse.redirect(url);
