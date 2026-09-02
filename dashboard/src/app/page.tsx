@@ -7,6 +7,7 @@ import { useBreakpoint } from "@/hooks/useBreakpoint";
 import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
+import Discover from "@/components/Discover";
 import DocumentUpload from "@/components/DocumentUpload";
 import AdminPanel from "@/components/AdminPanel";
 import dynamic from "next/dynamic";
@@ -143,6 +144,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
   const [logoOk, setLogoOk] = useState(true);
   const nav = [
     { id: "world",     icon: "◍", label: "داشبورد بین‌الملل", badge: undefined as number | undefined },
+    { id: "discover",  icon: "✦", label: "کشف محتوا",          badge: undefined },
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",       badge: undefined },
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",     badge: undefined },
     { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
@@ -1007,6 +1009,7 @@ export default function Dashboard() {
             : (isSmall ? "10px 10px 16px" : "14px 26px 22px"),
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
+          {active === "discover"  && <Discover />}
           {active === "coverage"  && <KnowledgeCoverage />}
           {active === "chat"      && <ChatPanel />}
           {active === "graph"     && <IntelligenceGraph onOpenChat={() => setActive("chat")} />}

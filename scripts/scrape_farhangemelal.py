@@ -20,67 +20,67 @@ BASE = "https://farhangemelal.icro.ir"
 COUNTRY_PAGES: list[tuple[str, str, str]] = [
     # (country_fa, region_fa, service_path)
     # شبه قاره
-    ("پاکستان",      "شبه‌قاره",         "/service/subcontinent/Pakestan"),
-    ("هند",          "شبه‌قاره",         "/service/subcontinent/india"),
-    ("افغانستان",    "شبه‌قاره",         "/service/subcontinent/Afganestan"),
-    ("بنگلادش",      "شبه‌قاره",         "/service/subcontinent/Bangeladesh"),
-    ("سریلانکا",     "شبه‌قاره",         "/service/subcontinent/Serilanka"),
+    ("پاکستان",         "شبه‌قاره",        "/service/subcontinent/Pakestan"),
+    ("هند",             "شبه‌قاره",        "/service/subcontinent/india"),
+    ("افغانستان",       "شبه‌قاره",        "/service/subcontinent/Afganestan"),
+    ("بنگلادش",         "شبه‌قاره",        "/service/subcontinent/Bangeladesh"),
+    ("سریلانکا",        "شبه‌قاره",        "/service/subcontinent/Serilanka"),
     # شرق آسیا
-    ("چین",          "شرق آسیا",         "/service/East%20Asia/chin"),
-    ("ژاپن",         "شرق آسیا",         "/service/East%20Asia/Japan"),
-    ("اندونزی",      "جنوب شرق آسیا",   "/service/East%20Asia/Andoneziya"),
-    ("تایلند",       "جنوب شرق آسیا",   "/service/East%20Asia/Tayland"),
-    ("مالزی",        "جنوب شرق آسیا",   "/service/East%20Asia/Maleziya"),
-    ("فیلیپین",      "جنوب شرق آسیا",   "/service/East%20Asia/Philipin"),
+    ("چین",             "شرق آسیا",        "/service/East%20Asia/chin"),
+    ("ژاپن",            "شرق آسیا",        "/service/East%20Asia/Japan"),
+    ("اندونزی",         "جنوب شرق آسیا",  "/service/East%20Asia/Andoneziya"),
+    ("تایلند",          "جنوب شرق آسیا",  "/service/East%20Asia/Tayland"),
+    ("مالزی",           "جنوب شرق آسیا",  "/service/East%20Asia/Maleziya"),
+    ("فیلیپین",         "جنوب شرق آسیا",  "/service/East%20Asia/Philipin"),
     # آسیای مرکزی و قفقاز
-    ("ترکیه",        "غرب آسیا",         "/service/Central%20Asia/Turkey"),
-    ("آذربایجان",    "آسیای مرکزی",     "/service/Central%20Asia/Azarbaijan"),
-    ("ازبکستان",     "آسیای مرکزی",     "/service/Central%20Asia/ozbakestan"),
-    ("ترکمنستان",    "آسیای مرکزی",     "/service/Central%20Asia/Torkman"),
-    ("قزاقستان",     "آسیای مرکزی",     "/service/Central%20Asia/Qazaqstan"),
-    ("قرقیزستان",    "آسیای مرکزی",     "/service/Central%20Asia/Qirghizstan"),
-    ("ارمنستان",     "قفقاز",           "/service/Central%20Asia/ArmanestaN"),
-    ("گرجستان",      "قفقاز",           "/service/Central%20Asia/Gorjestan"),
+    ("ترکیه",           "غرب آسیا",        "/service/Central%20Asia/torky"),
+    ("آذربایجان",       "آسیای مرکزی",    "/service/Central%20Asia/Azarbaijan"),
+    ("ازبکستان",        "آسیای مرکزی",    "/service/Central%20Asia/ozbakestan"),
+    ("ترکمنستان",       "آسیای مرکزی",    "/service/Central%20Asia/Torkman"),
+    ("قزاقستان",        "آسیای مرکزی",    "/service/Central%20Asia/Ghazag"),
+    ("قرقیزستان",       "آسیای مرکزی",    "/service/Central%20Asia/Gherghizestan"),
+    ("ارمنستان",        "قفقاز",           "/service/Central%20Asia/ArmanestaN"),
+    ("گرجستان",         "قفقاز",           "/service/Central%20Asia/Gorjestan"),
     # جهان عرب
-    ("عراق",         "خاورمیانه",        "/service/Arabic/Iraq"),
-    ("سوریه",        "خاورمیانه",        "/service/Arabic/Syria"),
-    ("لبنان",        "خاورمیانه",        "/service/Arabic/Lebanon"),
-    ("فلسطین",       "خاورمیانه",        "/service/Arabic/Palestine"),
-    ("مصر",          "آفریقای شمالی",   "/service/Arabic/Egypt"),
-    ("تونس",         "آفریقای شمالی",   "/service/Arabic/Tunisia"),
-    ("الجزایر",      "آفریقای شمالی",   "/service/Arabic/Algeria"),
-    ("قطر",          "خلیج فارس",       "/service/Arabic/Qatar"),
-    ("کویت",         "خلیج فارس",       "/service/Arabic/Kuwait"),
-    ("عمان",         "خلیج فارس",       "/service/Arabic/Oman"),
+    ("عراق",            "خاورمیانه",       "/service/Arabi/Iraq"),
+    ("سوریه",           "خاورمیانه",       "/service/Arabi/Suria"),
+    ("لبنان",           "خاورمیانه",       "/service/Arabi/Lobnan"),
+    ("فلسطین",          "خاورمیانه",       "/service/Arabi/felestine"),
+    ("مصر",             "آفریقای شمالی",  "/service/Arabi/Egypt"),
+    ("تونس",            "آفریقای شمالی",  "/service/Arabi/Tones"),
+    ("الجزایر",         "آفریقای شمالی",  "/service/Arabi/Aljazayer"),
+    ("قطر",             "خلیج فارس",       "/service/Arabi/ghatar"),
+    ("کویت",            "خلیج فارس",       "/service/Arabi/koveit"),
+    ("عمان",            "خلیج فارس",       "/service/Arabi/oman"),
     # آفریقا
-    ("نیجریه",       "آفریقا",          "/service/Africa/Nigeria"),
-    ("کنیا",         "آفریقا",          "/service/Africa/Kenya"),
-    ("اتیوپی",       "آفریقا",          "/service/Africa/Ethiopia"),
-    ("غنا",          "آفریقا",          "/service/Africa/Ghana"),
-    ("سنگال",        "آفریقا",          "/service/Africa/Senegal"),
-    ("تانزانیا",     "آفریقا",          "/service/Africa/Tanzania"),
-    ("اوگاندا",      "آفریقا",          "/service/Africa/Uganda"),
-    ("زیمبابوه",     "آفریقا",          "/service/Africa/Zimbabwe"),
-    ("آفریقای جنوبی","آفریقا",          "/service/Africa/SouthAfrica"),
-    # اروپا
-    ("روسیه",        "اروپای شرقی",     "/service/East%20Europe/Russia"),
-    ("ترکیه",        "اروپای غربی",     "/service/West%20Europe/Turkey"),  # گاهی لیست اروپا هم هست
-    ("آلمان",        "اروپای غربی",     "/service/West%20Europe/Germany"),
-    ("فرانسه",       "اروپای غربی",     "/service/West%20Europe/France"),
-    ("انگلیس",       "اروپای غربی",     "/service/West%20Europe/England"),
-    ("ایتالیا",      "اروپای غربی",     "/service/West%20Europe/Italy"),
-    ("اسپانیا",      "اروپای غربی",     "/service/West%20Europe/Spain"),
-    ("اتریش",        "اروپای غربی",     "/service/West%20Europe/Austria"),
-    ("سوئد",         "اروپای غربی",     "/service/West%20Europe/Sweden"),
-    ("یونان",        "اروپای غربی",     "/service/West%20Europe/Greece"),
-    ("بوسنی",        "اروپای شرقی",     "/service/East%20Europe/Bosnia"),
-    ("صربستان",      "اروپای شرقی",     "/service/East%20Europe/Serbia"),
-    ("بلغارستان",    "اروپای شرقی",     "/service/East%20Europe/Bulgaria"),
-    ("بلاروس",       "اروپای شرقی",     "/service/East%20Europe/Belarus"),
-    ("رومانی",       "اروپای شرقی",     "/service/East%20Europe/Romania"),
+    ("نیجریه",          "آفریقا",          "/service/Africa/Nigeria"),
+    ("کنیا",            "آفریقا",          "/service/Africa/Keniya"),
+    ("اتیوپی",          "آفریقا",          "/service/Africa/Etupi"),
+    ("غنا",             "آفریقا",          "/service/Africa/ghana"),
+    ("سنگال",           "آفریقا",          "/service/Africa/Senegal"),
+    ("تانزانیا",        "آفریقا",          "/service/Africa/Tanzania"),
+    ("اوگاندا",         "آفریقا",          "/service/Africa/Oganda"),
+    ("زیمبابوه",        "آفریقا",          "/service/Africa/zimbave"),
+    ("آفریقای جنوبی",   "آفریقا",          "/service/Africa/South-Africa"),
+    # اروپای شرقی
+    ("روسیه",           "اروپای شرقی",    "/service/East-Eur/Rusha"),
+    ("بوسنی",           "اروپای شرقی",    "/service/East-Eur/Bosny"),
+    ("صربستان",         "اروپای شرقی",    "/service/East-Eur/Serbestan"),
+    ("بلغارستان",       "اروپای شرقی",    "/service/East-Eur/Bolghrestan"),
+    ("بلاروس",          "اروپای شرقی",    "/service/East-Eur/Blarus"),
+    ("رومانی",          "اروپای شرقی",    "/service/East-Eur/romani"),
+    # اروپای غربی
+    ("آلمان",           "اروپای غربی",    "/service/West-USA/Germany"),
+    ("فرانسه",          "اروپای غربی",    "/service/West-USA/France"),
+    ("انگلیس",          "اروپای غربی",    "/service/West-USA/England"),
+    ("ایتالیا",         "اروپای غربی",    "/service/West-USA/Itily"),
+    ("اسپانیا",         "اروپای غربی",    "/service/West-USA/Espanish"),
+    ("اتریش",           "اروپای غربی",    "/service/West-USA/Otrish"),
+    ("سوئد",            "اروپای غربی",    "/service/West-USA/Soed"),
+    ("یونان",           "اروپای غربی",    "/service/West-USA/Yonan"),
     # آمریکای لاتین
-    ("برزیل",        "آمریکای لاتین",   "/service/America/Brazil"),
-    ("ونزوئلا",      "آمریکای لاتین",   "/service/America/Venezuela"),
+    ("برزیل",           "آمریکای لاتین",  "/service/amrika/Brazil"),
+    ("ونزوئلا",         "آمریکای لاتین",  "/service/amrika/Venezuela"),
 ]
 
 
@@ -126,13 +126,15 @@ def get_known_urls(cur) -> set[str]:
 
 def import_articles(urls_with_meta: list[tuple[str, dict]], delay: float, limit: Optional[int]):
     """ایمپورت مقالات با استفاده از منطق web_import."""
-    # import پویا از web_import
     sys.path.insert(0, str(__file__).rsplit("/", 1)[0])
     from web_import import connect, process_url  # type: ignore
 
-    conn = connect()
-    conn.autocommit = True
-    cur = conn.cursor()
+    def fresh_cursor():
+        conn = connect()
+        conn.autocommit = True
+        return conn, conn.cursor()
+
+    conn, cur = fresh_cursor()
 
     # فیلتر URLهای از پیش موجود
     known = get_known_urls(cur)
@@ -150,7 +152,28 @@ def import_articles(urls_with_meta: list[tuple[str, dict]], delay: float, limit:
     for i, (url, meta) in enumerate(new_urls, 1):
         country = meta.get("country", "")
         print(f"\n[{i}/{len(new_urls)}] {country} | {url[:70]}", flush=True)
-        status = process_url(cur, url, meta)
+        # reconnect در صورت قطع اتصال
+        try:
+            cur.execute("SELECT 1")
+        except Exception:
+            print("  ↻ reconnect به DB…", flush=True)
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conn, cur = fresh_cursor()
+
+        try:
+            status = process_url(cur, url, meta)
+        except Exception as e:
+            print(f"  ❌ خطا: {e}", flush=True)
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conn, cur = fresh_cursor()
+            status = "error"
+
         if   status == "ok":        ok   += 1
         elif status == "duplicate": dup  += 1; print("  ♻ تکراری")
         elif status == "too_short": skip += 1; print("  ⏭ متن کوتاه")
