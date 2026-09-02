@@ -131,7 +131,7 @@ function LeaderRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
     <div style={{ display: "flex", alignItems: "baseline", fontSize: 11 }}>
       <span style={{ color: T.t2, flexShrink: 0 }}>{k}</span>
       <span className="leader" />
-      <span style={{ color: T.t1, fontWeight: 600, flexShrink: 0, fontFamily: mono ? "monospace" : "inherit", fontSize: mono ? 10.5 : 11 }}>{v}</span>
+      <span style={{ color: T.t1, fontWeight: 600, flexShrink: 0, fontFamily: mono ? "YekanBakh, monospace" : "inherit", fontSize: mono ? 10.5 : 11 }}>{v}</span>
     </div>
   );
 }
@@ -218,7 +218,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
                 <span style={{
                   fontSize: 9.5, fontWeight: 600, color: on ? T.gold : T.t3,
                   border: `1px solid ${on ? T.goldLine : T.hair2}`, borderRadius: T.rPill,
-                  padding: "1px 7px", fontFamily: "monospace",
+                  padding: "1px 7px", fontFamily: "YekanBakh, monospace",
                 }}>{item.badge}</span>
               )}
             </button>
@@ -444,7 +444,7 @@ function ChatPanel() {
                       >
                         <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.mint, flexShrink: 0 }} />
                         <span style={{ maxWidth: 128, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-                        <span style={{ fontFamily: "monospace", color: T.gold }}>{s.score?.toFixed(2)}</span>
+                        <span style={{ fontFamily: "YekanBakh, monospace", color: T.gold }}>{s.score?.toFixed(2)}</span>
                       </button>
                     ))}
                   </div>
@@ -610,7 +610,7 @@ function VaultBrowser({ files, total }: { files: VaultFile[]; total: number }) {
                   <span style={{ fontSize: 11, flexShrink: 0 }}>{item.icon}</span>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
                 </span>
-                <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "monospace", flexShrink: 0 }}>{item.count}</span>
+                <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "YekanBakh, monospace", flexShrink: 0 }}>{item.count}</span>
               </button>
             );
           })}
@@ -749,10 +749,10 @@ function SearchPanel() {
                     {doc.score != null && (
                       <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <span style={{ width: 4, height: 4, borderRadius: "50%", background: scTone }} />
-                        <span style={{ fontSize: 9.5, fontFamily: "monospace", color: scTone }}>{sc.toFixed(2)}</span>
+                        <span style={{ fontSize: 9.5, fontFamily: "YekanBakh, monospace", color: scTone }}>{sc.toFixed(2)}</span>
                       </span>
                     )}
-                    <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "monospace" }}>#{i + 1}</span>
+                    <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "YekanBakh, monospace" }}>#{i + 1}</span>
                   </div>
                 </div>
                 <p style={{ fontSize: 10.5, color: T.t3, lineHeight: 1.65, margin: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
@@ -812,7 +812,7 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
       <p style={{ color: T.t3, fontSize: 11.5, margin: "0 0 20px" }}>اسکریپت sync را در Terminal اجرا کنید</p>
       <code style={{
         fontSize: 10.5, color: T.gold, background: T.goldDim, padding: "8px 16px",
-        borderRadius: T.rCtl, border: `1px solid ${T.goldLine}`, fontFamily: "monospace",
+        borderRadius: T.rCtl, border: `1px solid ${T.goldLine}`, fontFamily: "YekanBakh, monospace",
       }}>python3 scripts/sync_batch.py 0 4</code>
     </div>
   );
@@ -853,7 +853,7 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
-                  {doc.period_id && <span style={{ fontSize: 9.5, fontFamily: "monospace", color: T.t3 }}>{doc.period_id}</span>}
+                  {doc.period_id && <span style={{ fontSize: 9.5, fontFamily: "YekanBakh, monospace", color: T.t3 }}>{doc.period_id}</span>}
                   {doc.classification && <Pill label={doc.classification} tone={classTone[doc.classification] ?? T.t3} filled />}
                 </div>
               </div>

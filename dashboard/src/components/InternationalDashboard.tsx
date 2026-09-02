@@ -281,7 +281,7 @@ export default function InternationalDashboard({
                     <span key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: T.t2 }}>
                       <span style={{ width: 8, height: 8, borderRadius: 2, background: s.tone, opacity: 0.85 }} />
                       {s.label}
-                      <span style={{ color: T.t3, fontFamily: "monospace" }}>{totals[i]}</span>
+                      <span style={{ color: T.t3, fontFamily: "YekanBakh, monospace" }}>{totals[i]}</span>
                     </span>
                   ))}
                 </div>
@@ -436,7 +436,7 @@ function SourceBars({ sources }: { sources: Array<{ src: string; n: number }> })
         <div key={s.src}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 10.5, color: T.t2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{s.src}</span>
-            <span style={{ fontSize: 10, color: T.t3, fontFamily: "monospace" }}>{s.n}</span>
+            <span style={{ fontSize: 10, color: T.t3, fontFamily: "YekanBakh, monospace" }}>{s.n}</span>
           </div>
           <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)" }}>
             <div style={{ width: `${(s.n / max) * 100}%`, height: "100%", background: T.mint, borderRadius: 3, opacity: 0.75 }} />

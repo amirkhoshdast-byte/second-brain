@@ -171,7 +171,7 @@ export default function Discover() {
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: i > 0 ? `1px solid ${T.hair}` : "none" }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: ETYPE_COLOR[e.etype] ?? T.t3, flexShrink: 0 }} />
                     <span style={{ color: T.t2, fontSize: 10.5, flex: 1 }}>{e.name}</span>
-                    <span style={{ fontSize: 9, color: T.t3, fontFamily: "monospace" }}>{e.recent_mentions}</span>
+                    <span style={{ fontSize: 9, color: T.t3, fontFamily: "YekanBakh, monospace" }}>{e.recent_mentions}</span>
                   </div>
                 ))}
               </div>

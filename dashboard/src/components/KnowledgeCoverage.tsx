@@ -47,7 +47,7 @@ function Chip({ label, active, onClick, count }: { label: string; active: boolea
     >
       <span style={{ fontSize: 11.5, fontWeight: active ? 700 : 500, lineHeight: 1.3 }}>{label}</span>
       <span style={{
-        fontSize: 9, fontFamily: "monospace",
+        fontSize: 9, fontFamily: "YekanBakh, monospace",
         border: `1px solid ${active ? T.goldLine : T.hair2}`,
         borderRadius: T.rPill, padding: "1px 5px",
         color: active ? T.gold : T.t3,
@@ -71,7 +71,7 @@ function EntityCard({ e, search }: { e: EntityNode; search: string }) {
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
       <span style={{ color: T.t1, fontSize: 11, flex: 1, lineHeight: 1.4 }}>{e.name}</span>
       <span style={{
-        fontSize: 9, color: T.t3, fontFamily: "monospace",
+        fontSize: 9, color: T.t3, fontFamily: "YekanBakh, monospace",
         border: `1px solid ${T.hair}`, borderRadius: T.rPill, padding: "1px 5px",
       }}>{e.mentions}</span>
     </div>
