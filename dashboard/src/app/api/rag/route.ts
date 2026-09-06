@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   // بدون این کار چند chunk از یک فایل، هم context را با متن تکراری پر می‌کنند و
   // هم در UI به‌صورت چند چیپ یکسان دیده می‌شوند که توهم پشتیبانی بیشتر می‌سازد.
   // بالاترین امتیاز هر سند نگه داشته می‌شود (نتایج از قبل مرتب‌اند).
-  const MAX_SOURCES = 5;
+  const MAX_SOURCES = 7;
   const seen = new Set<string>();
   const unique: Array<Record<string, unknown>> = [];
   for (const h of hits) {
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             model: CHAT_MODEL,
             stream: true,
+            think: false,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },

@@ -24,8 +24,8 @@ MODEL = os.environ.get("EXTRACT_MODEL", "qwen3:8b")
 # آستانه‌ها — پایین‌تر از این، الگو آماری نیست و سیگنال ساخته نمی‌شود
 # از محیط قابل تنظیم‌اند تا بشود خط لوله را روی داده‌ی کم راستی‌آزمایی کرد؛
 # مقادیر پیش‌فرض برای پیکره‌ی کامل تنظیم شده‌اند.
-MIN_TREND_DOCS = int(os.environ.get("MIN_TREND_DOCS", 4))
-MIN_ACTOR_DOCS = int(os.environ.get("MIN_ACTOR_DOCS", 3))
+MIN_TREND_DOCS = int(os.environ.get("MIN_TREND_DOCS", 3))
+MIN_ACTOR_DOCS = int(os.environ.get("MIN_ACTOR_DOCS", 2))
 MIN_SPREAD_COUNTRIES = int(os.environ.get("MIN_SPREAD_COUNTRIES", 3))
 
 WRITE_SCHEMA = {
