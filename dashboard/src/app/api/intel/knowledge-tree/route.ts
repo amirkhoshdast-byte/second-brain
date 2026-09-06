@@ -14,9 +14,47 @@ function db() {
   return pool;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const forceMode = url.searchParams.get("mode"); // "topic" | "country" | null
+
   try {
     const c = db();
+
+    if (forceMode === "country") {
+      const countryRows = await c.query<{ country: string; doc_count: number }>(`
+        SELECT coalesce(country,'نامشخص') country, count(*)::int doc_count
+        FROM intel.document
+        GROUP BY 1 ORDER BY 2 DESC LIMIT 20
+      `);
+      const entityByCountry = await c.query<{
+        country: string; entity_id: number; name: string; etype: string; mentions: number
+      }>(`
+        SELECT coalesce(d.country,'نامشخص') country,
+               e.id entity_id, e.name, e.etype,
+               count(m.document_id)::int mentions
+        FROM intel.document d
+        JOIN intel.mention m ON m.document_id = d.id
+        JOIN intel.entity e ON e.id = m.entity_id
+        WHERE e.etype IN ('person','org','event')
+        GROUP BY 1,2,3,4
+        ORDER BY 1, mentions DESC
+      `);
+      const byCountry: Record<string, typeof entityByCountry.rows> = {};
+      for (const r of entityByCountry.rows) {
+        if (!byCountry[r.country]) byCountry[r.country] = [];
+        byCountry[r.country].push(r);
+      }
+      return NextResponse.json({
+        mode: "country",
+        concepts: countryRows.rows.map(r => ({
+          id: r.country, label: r.country, docs: r.doc_count,
+          entities: (byCountry[r.country] ?? []).slice(0, 25).map(e => ({
+            id: e.entity_id, name: e.name, etype: e.etype, mentions: e.mentions,
+          })),
+        })),
+      });
+    }
 
     // موضوعات (topic entities) با تعداد اسناد
     const topicRows = await c.query<{ topic_id: number; topic_name: string; doc_count: number }>(`

@@ -85,14 +85,22 @@ export default function KnowledgeCoverage() {
   const [selected, setSelected] = useState<number | string | null>(null);
   const [search, setSearch]   = useState("");
   const [etypeFilter, setEtypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"topic" | "country">("topic");
 
   useEffect(() => {
     fetch("/api/intel").then(r => r.json()).then(setIntel).catch(() => setIntel({ ready: false }));
-    fetch("/api/intel/knowledge-tree").then(r => r.json()).then((d: TreeData) => {
+  }, []);
+
+  useEffect(() => {
+    setTree(null);
+    setSelected(null);
+    setSearch("");
+    setEtypeFilter("all");
+    fetch(`/api/intel/knowledge-tree?mode=${viewMode}`).then(r => r.json()).then((d: TreeData) => {
       setTree(d);
       if (d.concepts.length > 0) setSelected(d.concepts[0].id);
     }).catch(() => setTree(null));
-  }, []);
+  }, [viewMode]);
 
   const concept = useMemo(() =>
     tree?.concepts.find(c => c.id === selected) ?? null,
@@ -124,11 +132,27 @@ export default function KnowledgeCoverage() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, marginBottom: 16, flexShrink: 0 }}>
         <div>
           <p style={{ color: T.gold, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", margin: 0 }}>KNOWLEDGE TREE</p>
-          <h1 style={{ color: T.t1, fontSize: 20, margin: "6px 0 4px", fontWeight: 700 }}>
-            درخت دانش — {tree?.mode === "country" ? "بر اساس کشور" : "موجودیت‌ها دور مفاهیم"}
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 4px" }}>
+            <h1 style={{ color: T.t1, fontSize: 20, margin: 0, fontWeight: 700 }}>
+              درخت دانش
+            </h1>
+            {/* mode toggle */}
+            <div style={{ display: "flex", borderRadius: T.rPill, border: `1px solid ${T.hair}`, overflow: "hidden" }}>
+              {(["topic", "country"] as const).map(m => (
+                <button key={m} onClick={() => setViewMode(m)} style={{
+                  padding: "4px 12px", cursor: "pointer",
+                  fontFamily: "YekanBakh, sans-serif", fontSize: 10, fontWeight: 600,
+                  border: "none", transition: "all 0.14s",
+                  background: viewMode === m ? T.gold : "transparent",
+                  color: viewMode === m ? "#000" : T.t3,
+                }}>
+                  {m === "topic" ? "موضوعات" : "کشورها"}
+                </button>
+              ))}
+            </div>
+          </div>
           <p style={{ color: T.t3, fontSize: 11, margin: 0 }}>
-            {tree ? `${tree.concepts.length} ${tree.mode === "country" ? "کشور" : "مفهوم"} · ${intel.documents ?? 0} سند استخراج‌شده` : "در حال بارگذاری گراف…"}
+            {tree ? `${tree.concepts.length} ${viewMode === "country" ? "کشور" : "مفهوم"} · ${intel.documents ?? 0} سند استخراج‌شده` : "در حال بارگذاری…"}
           </p>
         </div>
         {/* KPI strip */}
@@ -162,7 +186,7 @@ export default function KnowledgeCoverage() {
         }}>
           <div style={{ padding: "10px 10px 8px", borderBottom: `1px solid ${T.hair}`, flexShrink: 0 }}>
             <p style={{ color: T.t3, fontSize: 9.5, margin: 0, letterSpacing: ".05em" }}>
-              {tree?.mode === "country" ? "کشورها" : "مفاهیم / موضوعات"}
+              {viewMode === "country" ? "کشورها" : "مفاهیم / موضوعات"}
             </p>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
@@ -191,7 +215,7 @@ export default function KnowledgeCoverage() {
               }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ color: T.gold, fontSize: 10, margin: 0, letterSpacing: ".06em" }}>
-                    {tree?.mode === "country" ? "کشور" : "مفهوم"}
+                    {viewMode === "country" ? "کشور" : "مفهوم"}
                   </p>
                   <h2 style={{ color: T.t1, fontSize: 17, margin: "4px 0 0", fontWeight: 700 }}>{concept.label}</h2>
                 </div>
