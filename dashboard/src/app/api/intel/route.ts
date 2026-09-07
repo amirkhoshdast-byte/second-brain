@@ -56,7 +56,7 @@ export async function GET() {
       c.query(`select to_char(date_trunc('month', report_date), 'YYYY-MM') m,
                       count(*)::int n
                from intel.document where report_date is not null
-               group by 1 order by 1 desc limit 8`),
+               group by 1 order by 1 desc limit 18`),
       c.query(`select country, count(*)::int n
                from intel.document where country is not null and country <> ''
                group by country order by n desc, country limit 24`),

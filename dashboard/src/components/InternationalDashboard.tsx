@@ -254,47 +254,44 @@ export default function InternationalDashboard({
             ))}
           </div>
 
-          {/* نمودار لایه‌ای — فقط وقتی پوشش تاریخ واقعی کافی است */}
+          {/* نمودار زمانی ماهانه */}
           <Card style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-            {!live || hasReliableFlow ? (
+            {live && hasReliableFlow && live.flow && live.flow.length > 1 ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                  <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {(["هفته", "ماه", "فصل"] as const).map((r) => (
-                      <button key={r} onClick={() => setRange(r)} style={{
-                        ...filterBtn,
-                        color: range === r ? T.gold : T.t3,
-                        background: range === r ? T.goldDim : "transparent",
-                        border: `1px solid ${range === r ? T.goldLine : "transparent"}`,
-                      }}>{r}</button>
-                    ))}
+                  <div>
+                    <CardTitle>روند ماهانه اسناد</CardTitle>
+                    <p style={{ fontSize: 9.5, color: T.t3, margin: "3px 0 0" }}>
+                      {live.flow.length} ماه · {live.datedDocuments} سند دارای تاریخ
+                    </p>
                   </div>
+                  <span style={{
+                    fontSize: 9, color: T.ok, border: `1px solid rgba(74,222,156,0.3)`,
+                    borderRadius: T.rPill, padding: "2px 9px", background: "rgba(74,222,156,0.08)",
+                  }}>زنده · داده واقعی</span>
                 </div>
-
+                <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
+                  <MonthlyBarChart data={live.flow} />
+                </div>
+                <div style={{ display: "flex", gap: 16, marginTop: 8, flexShrink: 0 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9.5, color: T.t2 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(74,222,156,0.6)" }} />
+                    ماه‌های گذشته
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9.5, color: T.t2 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(232,180,74,0.7)" }} />
+                    ماه جاری
+                  </span>
+                </div>
+              </>
+            ) : !live ? (
+              <>
+                <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
                 <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
                   <FlowChart rows={rows} />
                 </div>
-
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 10, flexShrink: 0 }}>
-                  {SERIES.map((s, i) => (
-                    <span key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9.5, color: T.t2 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: s.tone, opacity: 0.85 }} />
-                      {s.label}
-                      <span style={{ color: T.t3, fontFamily: "YekanBakh, monospace" }}>{totals[i]}</span>
-                    </span>
-                  ))}
-                </div>
               </>
             ) : (
-              /*
-                پوشش تاریخ واقعی زیر ۱۰٪ است (در آزمایش: ۲ از ۴۹۲ سند). رسم
-                نمودار زمانی با این داده گمراه‌کننده است — چه با fallback
-                نادرست (که همه را در یک روز جمع می‌کرد) چه با محور واقعی
-                (که فقط دو نقطه‌ی پراکنده نشان می‌دهد). به‌جایش توزیع واقعی
-                دیگری (منبع گزارش) که از داده‌ی کامل ساخته می‌شود نشان
-                داده می‌شود.
-              */
               <>
                 <CardTitle>جریان گزارش و تحولات بین‌الملل</CardTitle>
                 <div style={{
@@ -303,8 +300,7 @@ export default function InternationalDashboard({
                 }}>
                   <p style={{ fontSize: 10, color: T.warn, margin: 0, lineHeight: 1.7 }}>
                     فقط {live.datedDocuments ?? 0} از {live.documents} سند تاریخ گزارش دارند؛
-                    نمودار روند زمانی با این پوشش قابل‌اتکا نیست. به‌جایش توزیع اسناد
-                    بر اساس منبع نمایش داده می‌شود.
+                    نمودار روند زمانی با این پوشش قابل‌اتکا نیست.
                   </p>
                 </div>
                 <div style={{ flex: 1, minHeight: 0, marginTop: 12, overflowY: "auto" }}>
@@ -454,9 +450,7 @@ function SourceBars({ sources }: { sources: Array<{ src: string; n: number }> })
  * است؛ لایه‌های AI بالای لایه‌های گزارش می‌نشینند تا این تبدیل دیده شود.
  *
  * توجه: این نمودار همیشه با داده‌ی نمونه (FLOW) رسم می‌شود، نه خروجی واقعی
- * خط لوله — چون در محصول فعلی هیچ ستون schema بین «گزارش نمایندگی/ستادی/
- * بیرونی» تفکیک نمی‌کند. با پوشش تاریخ ناکافی (حالت رایج فعلی)، این کامپوننت
- * اصلاً رندر نمی‌شود؛ به‌جایش SourceBars با داده‌ی واقعی نشان داده می‌شود.
+ * خط لوله. برای داده واقعی از MonthlyBarChart استفاده کنید.
  */
 function FlowChart({ rows }: { rows: number[][] }) {
   const W = 760;
@@ -509,6 +503,72 @@ function FlowChart({ rows }: { rows: number[][] }) {
         <line key={i} x1={x(i)} x2={x(i)} y1={H - padB} y2={H - padB + 4}
           stroke={T.hair2} strokeWidth={1} />
       ))}
+    </svg>
+  );
+}
+
+// ─── نمودار میله‌ای ماهانه با داده واقعی ─────────────────────────────────────
+const MONTH_FA: Record<string, string> = {
+  "01": "فرو", "02": "ارد", "03": "خرد", "04": "تیر", "05": "مرد", "06": "شهر",
+  "07": "مهر", "08": "آبا", "09": "آذر", "10": "دی", "11": "بهم", "12": "اسف",
+};
+
+function MonthlyBarChart({ data }: { data: Array<{ m: string; n: number }> }) {
+  if (!data || data.length === 0) return null;
+  const W = 760, H = 200, padB = 28, padT = 10, padLR = 8;
+  const max = Math.max(...data.map(d => d.n), 1);
+  const bw = (W - padLR * 2) / data.length;
+  const gap = bw * 0.22;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+      style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}>
+      {/* خطوط راهنما */}
+      {[0.25, 0.5, 0.75, 1].map(f => {
+        const yy = padT + (1 - f) * (H - padB - padT);
+        return (
+          <g key={f}>
+            <line x1={padLR} x2={W - padLR} y1={yy} y2={yy}
+              stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+            <text x={padLR + 2} y={yy - 3} fontSize={8} fill="rgba(255,255,255,0.2)"
+              fontFamily="YekanBakh, monospace">{Math.round(max * f)}</text>
+          </g>
+        );
+      })}
+
+      {/* میله‌ها */}
+      {data.map((d, i) => {
+        const barH = ((d.n / max) * (H - padB - padT));
+        const bx = padLR + i * bw + gap / 2;
+        const by = padT + (H - padB - padT) - barH;
+        const [yr, mo] = d.m.split("-");
+        const label = `${MONTH_FA[mo] ?? mo} ${yr.slice(2)}`;
+        const isLast = i === data.length - 1;
+        return (
+          <g key={d.m}>
+            <rect x={bx} y={by} width={bw - gap} height={barH}
+              rx={2} fill={isLast ? "rgba(232,180,74,0.55)" : "rgba(74,222,156,0.35)"}
+              stroke={isLast ? "rgba(232,180,74,0.8)" : "rgba(74,222,156,0.6)"}
+              strokeWidth={0.8} />
+            {/* عدد روی میله */}
+            {barH > 14 && (
+              <text x={bx + (bw - gap) / 2} y={by + 11} textAnchor="middle"
+                fontSize={7.5} fill="rgba(255,255,255,0.6)" fontFamily="YekanBakh, monospace">
+                {d.n}
+              </text>
+            )}
+            {/* برچسب ماه */}
+            <text x={bx + (bw - gap) / 2} y={H - 8} textAnchor="middle"
+              fontSize={7.5} fill="rgba(255,255,255,0.35)" fontFamily="YekanBakh, sans-serif">
+              {label}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* خط پایه */}
+      <line x1={padLR} x2={W - padLR} y1={H - padB} y2={H - padB}
+        stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
     </svg>
   );
 }
