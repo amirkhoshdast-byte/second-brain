@@ -140,7 +140,8 @@ function LeaderRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
-  active: string; setActive: (v: string) => void; counts: { vault: number; qdrant: number };
+  active: string; setActive: (v: string) => void;
+  counts: { vault: number; qdrant: number; newSignals?: number };
   isMobile?: boolean; open?: boolean; onClose?: () => void;
 }) {
   const [logoOk, setLogoOk] = useState(true);
@@ -150,7 +151,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",       badge: undefined },
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",     badge: undefined },
     { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
-    { id: "signals",   icon: "◉", label: "سیگنال‌ها",          badge: undefined },
+    { id: "signals",   icon: "◉", label: "سیگنال‌ها",          badge: counts.newSignals || undefined },
     { id: "compare",   icon: "⇌", label: "مقایسه کشورها",      badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",        badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
@@ -954,6 +955,8 @@ export default function Dashboard() {
   const [vaultTotal, setVaultTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [signalCount, setSignalCount] = useState(0);
+  const [seenSignalCount, setSeenSignalCount] = useState<number | null>(null);
   const { isMobile, isSmall } = useBreakpoint();
 
   useEffect(() => {
@@ -961,10 +964,25 @@ export default function Dashboard() {
       fetch("/api/stats").then((r) => r.json()),
       fetch("/api/documents").then((r) => r.json()),
       fetch("/api/vault").then((r) => r.json()),
-    ]).then(([s, d, v]) => {
+      fetch("/api/intel/signals").then(r => r.json()).catch(() => ({ total: 0 })),
+    ]).then(([s, d, v, sig]) => {
       setStats(s); setDocs(d.documents ?? []); setVaultFiles(v.files ?? []); setVaultTotal(v.total ?? 0); setLoading(false);
+      const total = sig.total ?? 0;
+      setSignalCount(total);
+      try {
+        const saved = parseInt(localStorage.getItem("seen_signal_count") ?? "0", 10);
+        setSeenSignalCount(saved);
+      } catch { setSeenSignalCount(total); }
     });
   }, []);
+
+  // وقتی کاربر صفحه سیگنال را باز کرد، badge را پاک کن
+  useEffect(() => {
+    if (active === "signals" && signalCount > 0) {
+      setSeenSignalCount(signalCount);
+      try { localStorage.setItem("seen_signal_count", String(signalCount)); } catch {}
+    }
+  }, [active, signalCount]);
 
   const heads: Record<string, { eyebrow: string; title: string }> = {
     world:     { eyebrow: "رصد چشم‌انداز بین‌الملل", title: "داشبورد بین‌الملل" },
@@ -1008,7 +1026,8 @@ export default function Dashboard() {
       )}
 
       <Sidebar active={active} setActive={(v) => { setActive(v); if (isMobile) setSidebarOpen(false); }}
-        counts={{ vault: vaultTotal, qdrant: stats?.total_documents ?? 0 }}
+        counts={{ vault: vaultTotal, qdrant: stats?.total_documents ?? 0,
+          newSignals: seenSignalCount !== null && signalCount > seenSignalCount ? signalCount - seenSignalCount : 0 }}
         isMobile={isMobile} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", minWidth: 0, overflow: "hidden", position: "relative", zIndex: 1 }}>
