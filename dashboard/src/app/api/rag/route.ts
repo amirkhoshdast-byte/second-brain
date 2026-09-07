@@ -58,6 +58,13 @@ async function hydeExpand(query: string): Promise<string> {
   }
 }
 
+// کشورهای رایج برای تشخیص از متن سوال
+const KNOWN_COUNTRIES = ["پاکستان","افغانستان","چین","قزاقستان","تایلند","اندونزی","ترکیه","آلمان","هند","عراق","سوریه","لبنان","مصر","ژاپن","کره","مالزی","بنگلادش","نیجریه","تانزانیا","سنگال"];
+
+function detectCountry(text: string): string | undefined {
+  return KNOWN_COUNTRIES.find(c => text.includes(c));
+}
+
 export async function POST(req: NextRequest) {
   const { question, history: rawHistory } = await req.json();
   if (!question?.trim()) return NextResponse.json({ error: "سوال خالی است" }, { status: 400 });
@@ -68,13 +75,23 @@ export async function POST(req: NextRequest) {
     : question;
   const conversation = history.map(t => `${t.role === "user" ? "کاربر" : "دستیار"}: ${t.content}`).join("\n");
 
+  // تشخیص کشور از سوال یا تاریخچه برای فیلتر هوشمند
+  const fullContext = [question, ...priorQuestions].join(" ");
+  const detectedCountry = detectCountry(fullContext);
+
   // ۱. HyDE — فقط برای سوال‌های کوتاه (< 30 کاراکتر) که embedding ضعیف دارند
   const isShort = question.trim().length < 30;
   const embedQuery = isShort ? await hydeExpand(retrievalQuery) : retrievalQuery;
 
   // ۲. embed + hybrid search (dense از HyDE + keyword از query اصلی → RRF)
+  // اگر کشور مشخص شد، اول با فیلتر جستجو کن؛ اگر نتیجه کم بود بدون فیلتر ادامه بده
   const vector = await embed(embedQuery);
-  const hits = await hybridSearch(retrievalQuery, vector, 12);
+  let hits = await hybridSearch(retrievalQuery, vector, 12, detectedCountry);
+  if (detectedCountry && hits.length < 4) {
+    // نتایج فیلترشده کم است — بدون فیلتر جستجو کن
+    const fallback = await hybridSearch(retrievalQuery, vector, 12);
+    hits = [...hits, ...fallback.filter(h => !hits.find(x => x.id === h.id))].slice(0, 12);
+  }
   if (hits.length === 0) {
     const enc = new TextEncoder();
     const s = new ReadableStream({

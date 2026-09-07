@@ -8,6 +8,7 @@ import IntelligenceGraph from "@/components/IntelligenceGraph";
 import InternationalDashboard from "@/components/InternationalDashboard";
 import KnowledgeCoverage from "@/components/KnowledgeCoverage";
 import Discover from "@/components/Discover";
+import Signals from "@/components/Signals";
 import DocumentUpload from "@/components/DocumentUpload";
 import AdminPanel from "@/components/AdminPanel";
 import dynamic from "next/dynamic";
@@ -148,6 +149,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",       badge: undefined },
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",     badge: undefined },
     { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
+    { id: "signals",   icon: "◉", label: "سیگنال‌ها",          badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",        badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
     { id: "documents", icon: "▦", label: "اسناد نمایه‌شده",   badge: counts.qdrant },
@@ -1011,6 +1013,7 @@ export default function Dashboard() {
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
           {active === "discover"  && <Discover />}
           {active === "coverage"  && <KnowledgeCoverage />}
+          {active === "signals"   && <Signals />}
           {active === "chat"      && <ChatPanel />}
           {active === "graph"     && <IntelligenceGraph onOpenChat={() => setActive("chat")} />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}

@@ -61,19 +61,15 @@ export async function search(vector: number[], limit = 5, scoreThreshold?: numbe
  * جستجوی کلیدواژه‌ای روی chunk_text و title.
  * نیازمند payload index از نوع text روی این فیلدها است (یک‌بار از طریق API ایجاد شده).
  */
-export async function keywordSearch(query: string, limit = 12): Promise<SearchHit[]> {
+export async function keywordSearch(query: string, limit = 12, extraFilter?: unknown): Promise<SearchHit[]> {
   // کلمات معنادار را استخراج کن (stop-words فارسی و عربی حذف می‌شوند)
   const STOP = new Set(["و","در","به","از","که","این","با","را","است","یک","آن","ها","می","هم","تا","اما","برای","یا","هر","نیز","بر","شد","شده"]);
   const words = query.trim().split(/\s+/).filter(w => w.length > 1 && !STOP.has(w));
   if (!words.length) return [];
 
-  // Qdrant full-text: هر کلمه باید در متن باشد (AND)
-  const filter = {
-    must: words.slice(0, 6).map(w => ({
-      key: "chunk_text",
-      match: { text: w },
-    })),
-  };
+  const wordClauses = words.slice(0, 6).map(w => ({ key: "chunk_text", match: { text: w } }));
+  const extraMust = extraFilter ? ((extraFilter as { must?: unknown[] }).must ?? [extraFilter]) : [];
+  const filter = { must: [...wordClauses, ...extraMust as object[]] };
 
   try {
     const d = await qdrant(`/collections/${COLLECTION}/points/scroll`, "POST", {
@@ -127,14 +123,29 @@ export async function hybridSearch(
   query: string,
   vector: number[],
   limit = 8,
+  countryFilter?: string,
 ): Promise<SearchHit[]> {
+  const filter = countryFilter ? {
+    must: [{ key: "country", match: { value: countryFilter } }],
+  } : undefined;
+
   const [dense, keyword] = await Promise.all([
-    search(vector, 16, 0.25),
-    keywordSearch(query, 16),
+    searchWithFilter(vector, 16, 0.2, filter),
+    keywordSearch(query, 16, filter),
   ]);
 
   // اگر keyword هیچ نتیجه‌ای نداشت، فقط dense برگردان
   if (!keyword.length) return dense.slice(0, limit);
 
   return rrf([dense, keyword], 60, limit);
+}
+
+async function searchWithFilter(vector: number[], limit = 5, scoreThreshold?: number, filter?: unknown) {
+  const body: Record<string, unknown> = {
+    vector, limit, with_payload: true, with_vector: false,
+  };
+  if (scoreThreshold !== undefined) body.score_threshold = scoreThreshold;
+  if (filter) body.filter = filter;
+  const d = await qdrant(`/collections/${COLLECTION}/points/search`, "POST", body);
+  return d.result ?? [];
 }
