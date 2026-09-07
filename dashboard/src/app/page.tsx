@@ -684,23 +684,40 @@ function VaultBrowser({ files, total }: { files: VaultFile[]; total: number }) {
 }
 
 // ─── Search ────────────────────────────────────────────────────────────────────
+const SEARCH_COUNTRIES = ["پاکستان","افغانستان","چین","قزاقستان","تایلند","اندونزی","ترکیه","آلمان","هند","عراق","سوریه","لبنان","مصر","ژاپن","کره","مالزی","بنگلادش","نیجریه","تانزانیا","سنگال"];
+
 function SearchPanel() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QdrantDoc[]>([]);
   const [searching, setSearching] = useState(false);
   const [isSemantic, setIsSemantic] = useState(false);
   const [selected, setSelected] = useState<QdrantDoc | null>(null);
+  const [filterCountry, setFilterCountry] = useState("");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const doSearch = async (q: string) => {
     if (!q.trim()) return;
     setSearching(true); setResults([]); setSelected(null);
-    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const params = new URLSearchParams({ q });
+    if (filterCountry) params.set("country", filterCountry);
+    if (filterFrom)    params.set("from", filterFrom);
+    if (filterTo)      params.set("to", filterTo);
+    const r = await fetch(`/api/search?${params}`);
     const d = await r.json();
     setResults(d.results ?? []); setIsSemantic(d.semantic ?? false); setSearching(false);
   };
 
+  const hasFilters = !!(filterCountry || filterFrom || filterTo);
+  const inputSel = {
+    background: "rgba(0,0,0,0.2)", border: `1px solid ${T.hair}`, color: T.t1,
+    borderRadius: T.rCtl, padding: "4px 9px", fontSize: 10.5,
+    fontFamily: "YekanBakh, sans-serif", outline: "none",
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 13 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
       <form onSubmit={(e) => { e.preventDefault(); doSearch(query); }} className="panel" style={{ display: "flex", gap: 8, padding: 8, alignItems: "center" }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)}
           placeholder="جستجوی معنایی در متن اسناد Vault…"
@@ -710,6 +727,13 @@ function SearchPanel() {
             fontFamily: "YekanBakh, sans-serif", caretColor: T.gold,
           }}
         />
+        <button type="button" onClick={() => setShowFilters(v => !v)}
+          style={{ background: hasFilters ? `${T.gold}20` : "transparent",
+            border: `1px solid ${hasFilters ? T.goldLine : T.hair}`,
+            color: hasFilters ? T.gold : T.t3, borderRadius: T.rCtl,
+            padding: "7px 11px", fontSize: 11, cursor: "pointer" }}>
+          ⚙ فیلتر{hasFilters ? " ●" : ""}
+        </button>
         <button type="submit" disabled={searching || !query.trim()} style={{
           background: T.goldDim, border: `1px solid ${T.goldLine}`, color: T.gold,
           borderRadius: T.rCtl, padding: "8px 20px", fontSize: 12, fontWeight: 600,
@@ -720,10 +744,32 @@ function SearchPanel() {
         </button>
       </form>
 
+      {showFilters && (
+        <div className="panel" style={{ padding: "10px 14px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={filterCountry} onChange={e => setFilterCountry(e.target.value)} style={inputSel}>
+            <option value="">همه کشورها</option>
+            {SEARCH_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: T.t3 }}>
+            از: <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...inputSel, width: 130 }} />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: T.t3 }}>
+            تا: <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...inputSel, width: 130 }} />
+          </label>
+          {hasFilters && (
+            <button onClick={() => { setFilterCountry(""); setFilterFrom(""); setFilterTo(""); }}
+              style={{ ...inputSel, border: `1px solid ${T.warn}60`, color: T.warn, cursor: "pointer" }}>
+              × پاک کردن فیلترها
+            </button>
+          )}
+        </div>
+      )}
+
       {results.length > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Pill label={isSemantic ? "semantic · bge-m3" : "keyword"} tone={isSemantic ? T.lavender : T.t3} filled />
           <span style={{ fontSize: 10.5, color: T.t3 }}>{results.length} نتیجه</span>
+          {filterCountry && <Pill label={filterCountry} tone={T.sky} filled />}
         </div>
       )}
 
