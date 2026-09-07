@@ -223,6 +223,14 @@ export default function KnowledgeCoverage() {
                   fontSize: 10, color: T.mint, border: `1px solid ${T.mint}44`,
                   background: `${T.mint}10`, borderRadius: T.rPill, padding: "4px 10px",
                 }}>{concept.docs} سند · {concept.entities.length} موجودیت</span>
+                {viewMode === "country" && (
+                  <button onClick={() => window.open(`/api/intel/export?country=${encodeURIComponent(concept.label)}`, "_blank")}
+                    style={{ padding: "4px 10px", borderRadius: T.rCtl, cursor: "pointer",
+                      background: "transparent", border: `1px solid ${T.gold}60`,
+                      color: T.gold, fontSize: 9.5, fontFamily: "YekanBakh, sans-serif" }}>
+                    ↓ گزارش PDF
+                  </button>
+                )}
               </div>
 
               {/* filters */}

@@ -191,7 +191,7 @@ export default function CountryCompare() {
         </div>
 
         {/* controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
           <select value={selA} onChange={e => setSelA(e.target.value)} style={sel}>
             {countries.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -206,6 +206,22 @@ export default function CountryCompare() {
               opacity: loading || selA === selB ? 0.5 : 1 }}>
             {loading ? "…" : "مقایسه"}
           </button>
+          {data && (
+            <div style={{ display: "flex", gap: 5 }}>
+              <button onClick={() => window.open(`/api/intel/export?country=${encodeURIComponent(selA)}`, "_blank")}
+                style={{ padding: "4px 10px", borderRadius: T.rCtl, cursor: "pointer",
+                  background: "transparent", border: `1px solid ${T.lavender}60`,
+                  color: T.lavender, fontSize: 9.5, fontFamily: "YekanBakh, sans-serif" }}>
+                ↓ PDF {selA}
+              </button>
+              <button onClick={() => window.open(`/api/intel/export?country=${encodeURIComponent(selB)}`, "_blank")}
+                style={{ padding: "4px 10px", borderRadius: T.rCtl, cursor: "pointer",
+                  background: "transparent", border: `1px solid ${T.mint}60`,
+                  color: T.mint, fontSize: 9.5, fontFamily: "YekanBakh, sans-serif" }}>
+                ↓ PDF {selB}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
