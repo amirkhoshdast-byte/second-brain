@@ -32,9 +32,9 @@ export async function GET(req: NextRequest) {
     c.query(`SELECT to_char(date_trunc('month', report_date),'YYYY-MM') m, count(*)::int n
              FROM intel.document WHERE country=$1 AND report_date IS NOT NULL
              GROUP BY 1 ORDER BY 1`, [country]),
-    c.query(`SELECT topic, count(*)::int n FROM intel.document
-             WHERE country=$1 AND topic IS NOT NULL GROUP BY topic ORDER BY n DESC LIMIT 8`, [country]),
-    c.query(`SELECT title, report_date, topic, summary
+    c.query(`SELECT doc_type AS topic, count(*)::int n FROM intel.document
+             WHERE country=$1 AND doc_type IS NOT NULL GROUP BY doc_type ORDER BY n DESC LIMIT 8`, [country]),
+    c.query(`SELECT title, report_date, doc_type AS topic, ai_summary AS summary
              FROM intel.document WHERE country=$1 ORDER BY report_date DESC NULLS LAST LIMIT 8`, [country]),
   ]);
 

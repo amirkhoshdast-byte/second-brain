@@ -10,6 +10,8 @@ import KnowledgeCoverage from "@/components/KnowledgeCoverage";
 import Discover from "@/components/Discover";
 import Signals from "@/components/Signals";
 import CountryCompare from "@/components/CountryCompare";
+import DocumentTimeline from "@/components/DocumentTimeline";
+import WeeklyDigest from "@/components/WeeklyDigest";
 import DocumentUpload from "@/components/DocumentUpload";
 import AdminPanel from "@/components/AdminPanel";
 import dynamic from "next/dynamic";
@@ -153,6 +155,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
     { id: "signals",   icon: "◉", label: "سیگنال‌ها",          badge: counts.newSignals || undefined },
     { id: "compare",   icon: "⇌", label: "مقایسه کشورها",      badge: undefined },
+    { id: "digest",    icon: "⊞", label: "خلاصه هفتگی",        badge: undefined },
     { id: "vault",     icon: "◇", label: "یادداشت‌ها",        badge: counts.vault },
     { id: "search",    icon: "◎", label: "جستجوی معنایی",    badge: undefined },
     { id: "documents", icon: "▦", label: "اسناد نمایه‌شده",   badge: counts.qdrant },
@@ -938,6 +941,11 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
                   <p style={{ fontSize: 10.5, color: T.t2, lineHeight: 1.9, margin: 0 }}>{(selected.chunk_text ?? selected.text_preview ?? "").slice(0, 320)}</p>
                 </div>
               )}
+              <DocumentTimeline
+                country={(selected as Record<string, unknown>).country as string | null}
+                topic={(selected as Record<string, unknown>).topic as string | null}
+                currentId={String(selected.id)}
+              />
             </div>
           </div>
         )}
@@ -1082,6 +1090,7 @@ export default function Dashboard() {
           {active === "coverage"  && <KnowledgeCoverage />}
           {active === "signals"   && <Signals />}
           {active === "compare"   && <CountryCompare />}
+          {active === "digest"    && <WeeklyDigest />}
           {active === "chat"      && <ChatPanel />}
           {active === "graph"     && <IntelligenceGraph onOpenChat={() => setActive("chat")} />}
           {active === "vault"     && <VaultBrowser files={vaultFiles} total={vaultTotal} />}

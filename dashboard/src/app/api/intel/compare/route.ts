@@ -48,10 +48,10 @@ export async function GET(req: NextRequest) {
              FROM intel.document WHERE country=$1 AND report_date IS NOT NULL
              GROUP BY 1 ORDER BY 1 DESC LIMIT 12`, [b]),
 
-    c.query(`SELECT topic, count(*)::int n FROM intel.document
-             WHERE country=$1 AND topic IS NOT NULL GROUP BY topic ORDER BY n DESC LIMIT 6`, [a]),
-    c.query(`SELECT topic, count(*)::int n FROM intel.document
-             WHERE country=$1 AND topic IS NOT NULL GROUP BY topic ORDER BY n DESC LIMIT 6`, [b]),
+    c.query(`SELECT doc_type AS topic, count(*)::int n FROM intel.document
+             WHERE country=$1 AND doc_type IS NOT NULL GROUP BY doc_type ORDER BY n DESC LIMIT 6`, [a]),
+    c.query(`SELECT doc_type AS topic, count(*)::int n FROM intel.document
+             WHERE country=$1 AND doc_type IS NOT NULL GROUP BY doc_type ORDER BY n DESC LIMIT 6`, [b]),
 
     c.query(`SELECT country FROM intel.document WHERE country IS NOT NULL
              GROUP BY country ORDER BY count(*) DESC LIMIT 54`),
