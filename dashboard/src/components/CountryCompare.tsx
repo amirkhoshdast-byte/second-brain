@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 
 type CountryData = {
   country: string;
@@ -151,6 +152,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function CountryCompare() {
+  const { isMobile } = useBreakpoint();
   const [countries, setCountries] = useState<string[]>([]);
   const [selA, setSelA] = useState("پاکستان");
   const [selB, setSelB] = useState("افغانستان");
@@ -180,18 +182,18 @@ export default function CountryCompare() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column",
-      padding: "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
+      padding: isMobile ? "12px 14px 0" : "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
 
       {/* header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "flex-start" : "flex-start", justifyContent: "space-between", gap: isMobile ? 10 : 16, marginBottom: 16, flexShrink: 0 }}>
         <div>
           <p style={{ color: T.gold, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", margin: 0 }}>COUNTRY COMPARISON</p>
-          <h1 style={{ color: T.t1, fontSize: 20, margin: "6px 0 4px", fontWeight: 700 }}>مقایسه کشورها</h1>
-          <p style={{ color: T.t3, fontSize: 11, margin: 0 }}>سیگنال‌ها، موجودیت‌ها و روند ماهانه — کنار هم</p>
+          <h1 style={{ color: T.t1, fontSize: isMobile ? 16 : 20, margin: "6px 0 4px", fontWeight: 700 }}>مقایسه کشورها</h1>
+          {!isMobile && <p style={{ color: T.t3, fontSize: 11, margin: 0 }}>سیگنال‌ها، موجودیت‌ها و روند ماهانه — کنار هم</p>}
         </div>
 
         {/* controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <select value={selA} onChange={e => setSelA(e.target.value)} style={sel}>
             {countries.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -234,9 +236,10 @@ export default function CountryCompare() {
           <p style={{ color: T.t3, fontSize: 12 }}>در حال مقایسه…</p>
         )}
         {data && (
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 14, alignItems: "flex-start" }}>
             <Side d={data.a} color={T.lavender} />
-            <div style={{ width: 1, alignSelf: "stretch", background: T.hair, flexShrink: 0 }} />
+            {!isMobile && <div style={{ width: 1, alignSelf: "stretch", background: T.hair, flexShrink: 0 }} />}
+            {isMobile && <div style={{ height: 1, width: "100%", background: T.hair }} />}
             <Side d={data.b} color={T.mint} />
           </div>
         )}

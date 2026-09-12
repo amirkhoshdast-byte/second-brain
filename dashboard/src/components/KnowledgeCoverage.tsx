@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { T } from "@/lib/theme";
 
 /* ─── types ─────────────────────────────────────────────── */
@@ -80,6 +81,7 @@ function EntityCard({ e, search }: { e: EntityNode; search: string }) {
 
 /* ─── main component ────────────────────────────────────── */
 export default function KnowledgeCoverage() {
+  const { isMobile } = useBreakpoint();
   const [intel, setIntel]     = useState<Intel | null>(null);
   const [tree, setTree]       = useState<TreeData | null>(null);
   const [selected, setSelected] = useState<number | string | null>(null);
@@ -175,8 +177,8 @@ export default function KnowledgeCoverage() {
         </div>
       </div>
 
-      {/* body: two-column */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, overflow: "hidden", paddingBottom: 18 }}>
+      {/* body: two-column (stack on mobile) */}
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", gap: 12, overflow: "hidden", paddingBottom: 18 }}>
 
         {/* left: concept list */}
         <div style={{

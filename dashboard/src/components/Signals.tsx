@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 
 type Signal = {
   id: string; stype: string; title: string; description: string;
@@ -30,6 +31,7 @@ function ConfBar({ v }: { v: number }) {
 }
 
 export default function Signals() {
+  const { isMobile } = useBreakpoint();
   const [data, setData]           = useState<Filter | null>(null);
   const [stype, setStype]         = useState<string>("all");
   const [country, setCountry]     = useState<string>("all");
@@ -55,13 +57,13 @@ export default function Signals() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column",
-      padding: "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
+      padding: isMobile ? "12px 14px 0" : "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
 
       {/* header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 14, flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "flex-start", justifyContent: "space-between", gap: isMobile ? 8 : 16, marginBottom: 14, flexShrink: 0 }}>
         <div>
           <p style={{ color: T.gold, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", margin: 0 }}>INTELLIGENCE SIGNALS</p>
-          <h1 style={{ color: T.t1, fontSize: 20, margin: "6px 0 4px", fontWeight: 700 }}>سیگنال‌های هوشمند</h1>
+          <h1 style={{ color: T.t1, fontSize: isMobile ? 16 : 20, margin: "6px 0 4px", fontWeight: 700 }}>سیگنال‌های هوشمند</h1>
           <p style={{ color: T.t3, fontSize: 11, margin: 0 }}>
             {data ? `${filtered.length} سیگنال` : "در حال بارگذاری…"}
             {data && ` · ${data.stypes.map(s => `${STYPE_FA[s.stype]??s.stype}: ${s.n}`).join(" · ")}`}

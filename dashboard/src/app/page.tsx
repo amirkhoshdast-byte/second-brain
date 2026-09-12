@@ -165,9 +165,9 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
 
   return (
     <aside style={{
-      width: 212, flexShrink: 0, borderLeft: `1px solid ${T.hair}`,
+      width: isMobile ? "100vw" : 212, flexShrink: 0, borderLeft: `1px solid ${T.hair}`,
       display: "flex", flexDirection: "column", height: "100vh",
-      background: "rgba(6,17,14,0.88)", backdropFilter: "blur(20px)",
+      background: isMobile ? "rgba(6,17,14,0.97)" : "rgba(6,17,14,0.88)", backdropFilter: "blur(20px)",
       position: isMobile ? "fixed" : "relative",
       top: 0, right: 0, bottom: 0,
       zIndex: isMobile ? 11 : 2,
@@ -176,6 +176,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     }}>
       {/* Brand */}
       <div style={{ padding: "18px 16px 16px", borderBottom: `1px solid ${T.hair}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/*
             نشان سازمان از public/logo.svg خوانده می‌شود. تا وقتی فایل نباشد،
@@ -198,6 +199,12 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
             <p style={{ color: T.t1, fontWeight: 700, fontSize: 13, lineHeight: 1.15, margin: 0 }}>مغز دوم</p>
             <p style={{ color: T.t3, fontSize: 9, margin: "4px 0 0", lineHeight: 1.5 }}>سازمان فرهنگ<br />و ارتباطات اسلامی</p>
           </div>
+        </div>
+        {isMobile && onClose && (
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${T.hair}`,
+            borderRadius: T.rCtl, color: T.t2, cursor: "pointer", padding: "5px 10px",
+            fontSize: 16, lineHeight: 1 }}>✕</button>
+        )}
         </div>
       </div>
 

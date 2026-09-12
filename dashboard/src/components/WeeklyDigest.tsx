@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { T } from "@/lib/theme";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 
 type DigestData = {
   summary: string | null;
@@ -17,6 +18,7 @@ const DIR_MARK: Record<string,string> = { up:"↑", down:"↓", flat:"→" };
 const DIR_COLOR: Record<string,string> = { up: T.ok, down: T.bad, flat: T.t3 };
 
 export default function WeeklyDigest() {
+  const { isMobile } = useBreakpoint();
   const [data, setData] = useState<DigestData | null>(null);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState(false);
@@ -34,13 +36,13 @@ export default function WeeklyDigest() {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column",
-      padding: "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
+      padding: isMobile ? "12px 14px 0" : "18px 26px 0", overflow: "hidden", fontFamily: "YekanBakh, sans-serif" }}>
 
       {/* header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 18, flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "flex-start", justifyContent: "space-between", gap: isMobile ? 8 : 16, marginBottom: 18, flexShrink: 0 }}>
         <div>
           <p style={{ color: T.gold, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", margin: 0 }}>WEEKLY DIGEST</p>
-          <h1 style={{ color: T.t1, fontSize: 20, margin: "6px 0 4px", fontWeight: 700 }}>خلاصه هفتگی هوشمند</h1>
+          <h1 style={{ color: T.t1, fontSize: isMobile ? 16 : 20, margin: "6px 0 4px", fontWeight: 700 }}>خلاصه هفتگی هوشمند</h1>
           <p style={{ color: T.t3, fontSize: 11, margin: 0 }}>
             {data?.generatedAt ? `ساخته‌شده: ${new Date(data.generatedAt).toLocaleString("fa-IR")}` : "در حال تولید…"}
           </p>
