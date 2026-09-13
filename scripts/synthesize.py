@@ -175,7 +175,7 @@ def find_trends(cur, days=180):
         select r.country, r.topic, r.n, coalesce(p.n,0), r.ids
         from recent r left join prior p on p.country=r.country and p.topic=r.topic
         where r.n >= %s
-        order by r.n desc limit 12
+        order by r.n desc limit 20
     """, (days, days, days, MIN_TREND_DOCS))
     return cur.fetchall()
 
@@ -192,7 +192,7 @@ def find_emerging_actors(cur):
         where e.etype in ('org','person')
         group by 1,2
         having count(distinct d.id) >= %s
-        order by n desc limit 10
+        order by n desc limit 16
     """, (MIN_ACTOR_DOCS,))
     return cur.fetchall()
 
@@ -210,6 +210,61 @@ def find_cross_country(cur):
         having count(distinct d.country) >= %s
         order by c desc, n desc limit 8
     """, (MIN_SPREAD_COUNTRIES,))
+    return cur.fetchall()
+
+
+def find_recent_burst(cur, burst_days=60, base_days=180):
+    """موضوع یا کشوری که در دوره‌ی کوتاه اخیر جهش ناگهانی داشته."""
+    cur.execute("""
+        with burst as (
+          select d.country, e.name topic, count(*) n, array_agg(d.id) ids
+          from intel.document d
+          join intel.mention m on m.document_id = d.id
+          join intel.entity  e on e.id = m.entity_id and e.etype = 'topic'
+          where d.country is not null
+            and d.report_date >= current_date - %s::int
+          group by 1,2
+        ),
+        baseline as (
+          select d.country, e.name topic, count(*)::float / (%s::float / %s::float) rate
+          from intel.document d
+          join intel.mention m on m.document_id = d.id
+          join intel.entity  e on e.id = m.entity_id and e.etype = 'topic'
+          where d.country is not null
+            and d.report_date >= current_date - %s::int
+            and d.report_date < current_date - %s::int
+          group by 1,2
+        )
+        select b.country, b.topic, b.n, coalesce(bl.rate, 0) base_rate,
+               b.n / greatest(coalesce(bl.rate, 0), 0.5) surge, b.ids
+        from burst b
+        left join baseline bl on bl.country=b.country and bl.topic=b.topic
+        where b.n >= 3
+          and b.n / greatest(coalesce(bl.rate, 0), 0.5) > 2.5
+        order by surge desc limit 10
+    """, (burst_days, base_days, burst_days, base_days, burst_days))
+    return cur.fetchall()
+
+
+def find_entity_cooccurrence(cur):
+    """جفت موجودیت‌هایی که بارها در یک سند ظاهر شده‌اند — رابطه‌ی پنهان."""
+    cur.execute("""
+        select ea.name, eb.name, ea.etype, eb.etype,
+               count(distinct m1.document_id) w,
+               array_agg(distinct m1.document_id) ids
+        from intel.mention m1
+        join intel.mention m2
+          on m1.document_id = m2.document_id
+         and m1.entity_id < m2.entity_id
+        join intel.entity ea on ea.id = m1.entity_id
+        join intel.entity eb on eb.id = m2.entity_id
+        where ea.etype in ('person','org')
+          and eb.etype in ('person','org','topic')
+          and ea.etype != eb.etype
+        group by 1,2,3,4
+        having count(distinct m1.document_id) >= 4
+        order by w desc limit 10
+    """)
     return cur.fetchall()
 
 
@@ -317,6 +372,44 @@ def main():
              "بالا" if c >= 5 else "متوسط", conf, "flat", None, ids)
         made += 1
         print(f"  ✓ {w['title'][:52]} · {c} کشور · اطمینان {conf}", flush=True)
+
+    # ── جهش اخیر ──
+    print("\nجهش‌های اخیر:", flush=True)
+    for country, topic, n, base_rate, surge, ids in find_recent_burst(cur):
+        facts = (f"موضوع «{topic}» در کشور {country}: {n} گزارش در ۶۰ روز اخیر، "
+                 f"در حالی که نرخ پایه {base_rate:.1f} بود (جهش ×{surge:.1f}).")
+        w = write_up("جهش اخیر", facts, summaries(cur, ids))
+        if not w:
+            continue
+        key = norm_title(w["title"])
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        conf = confidence_from(n)
+        save(cur, "signal", w["title"], w["description"], country, topic,
+             "بالا", conf, "up", 60, list(ids))
+        made += 1
+        print(f"  ✓ {w['title'][:52]} · {country} · ×{surge:.1f}", flush=True)
+
+    # ── همبستگی موجودیت ──
+    print("\nهمبستگی موجودیت‌ها:", flush=True)
+    for name_a, name_b, etype_a, etype_b, w_count, ids in find_entity_cooccurrence(cur):
+        kind_a = "شخص" if etype_a == "person" else "سازمان"
+        kind_b = "شخص" if etype_b == "person" else ("سازمان" if etype_b == "org" else "موضوع")
+        facts = (f"{kind_a} «{name_a}» و {kind_b} «{name_b}» در {w_count} سند "
+                 f"به‌طور مشترک ذکر شده‌اند.")
+        w = write_up("همبستگی موجودیت", facts, summaries(cur, ids))
+        if not w:
+            continue
+        key = norm_title(w["title"])
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        conf = confidence_from(w_count)
+        save(cur, "insight", w["title"], w["description"], None, None,
+             "متوسط", conf, "flat", None, list(ids))
+        made += 1
+        print(f"  ✓ {w['title'][:52]} · {w_count} سند", flush=True)
 
     # ── تمرکز جغرافیایی ──
     print("\nتمرکز جغرافیایی:", flush=True)
