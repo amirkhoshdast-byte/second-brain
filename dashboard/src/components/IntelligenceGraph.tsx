@@ -37,6 +37,7 @@ type GraphData = {
   cooccur?: Array<{ a: string; b: string; w: number }>;
   signals?: Array<{ id: string; stype: string; title: string; country: string | null; topic: string | null; confidence: number }>;
   perCountry?: Array<{ country: string; eid: string; name: string; etype: string; mentions: number }>;
+  topTopics?: Array<{ name: string; n: number }>;
 };
 
 const toneColor: Record<Tone, string> = {
@@ -381,8 +382,10 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const [nodes, setNodes] = useState<GNode[]>(SAMPLE_NODES);
   const [edges, setEdges] = useState<GEdge[]>(SAMPLE_EDGES);
   const [isLive, setIsLive] = useState(false);
-  const [countryFilter, setCountryFilter] = useState<string | null>(null); // null = multi
+  const [countryFilter, setCountryFilter] = useState<string | null>(null);
+  const [topicFilter, setTopicFilter] = useState<string | null>(null);
   const [topCountries, setTopCountries] = useState<Array<{ country: string; n: number }>>([]);
+  const [topTopics, setTopTopics] = useState<Array<{ name: string; n: number }>>([]);
   const [rawData, setRawData] = useState<GraphData | null>(null);
 
   // ── انیمیشن مداری ─────────────────────────────────────────────────────────
@@ -403,9 +406,10 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
 
   // بارگذاری داده‌ی زنده از API
   useEffect(() => {
-    const url = countryFilter
-      ? `/api/intel/graph?country=${encodeURIComponent(countryFilter)}`
-      : "/api/intel/graph";
+    const params = new URLSearchParams();
+    if (countryFilter) params.set("country", countryFilter);
+    if (topicFilter)   params.set("topic",   topicFilter);
+    const url = `/api/intel/graph${params.size ? "?" + params : ""}`;
     fetch(url)
       .then(r => r.json())
       .then((data: GraphData) => {
@@ -414,6 +418,7 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
         if (data.countries?.length && !countryFilter) {
           setTopCountries(data.countries.slice(0, 8));
         }
+        if (data.topTopics?.length) setTopTopics(data.topTopics.slice(0, 10));
         const { nodes: n, edges: e } = countryFilter
           ? buildGraph(data)
           : (data.mode === "multi" ? buildMultiGraph(data) : buildGraph(data));
@@ -427,7 +432,7 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countryFilter]);
+  }, [countryFilter, topicFilter]);
 
   const [selected, setSelected] = useState<string | null>("indonesia");
   const [views, setViews] = useState<Record<System, boolean>>({ knowledge: true, execution: false });
@@ -766,24 +771,47 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
           </g>
         </svg>
 
-        {/* چیپ‌های فیلتر کشور */}
-        {isLive && topCountries.length > 0 && (
-          <div style={{ position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 5, zIndex: 2, flexWrap: "wrap", maxWidth: "min(700px, calc(100% - 32px))", justifyContent: "center" }}>
-            <button
-              onClick={() => setCountryFilter(null)}
-              style={{ fontSize: 10, padding: "3px 12px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: countryFilter === null ? T.goldDim : "rgba(0,0,0,0.35)", color: countryFilter === null ? T.gold : T.t3, border: `1px solid ${countryFilter === null ? T.goldLine : T.hair}` }}>
-              همه
-            </button>
-            {topCountries.map(c => {
-              const active = countryFilter === c.country;
-              return (
-                <button key={c.country}
-                  onClick={() => setCountryFilter(active ? null : c.country)}
-                  style={{ fontSize: 10, padding: "3px 12px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: active ? "rgba(111,224,192,0.15)" : "rgba(0,0,0,0.35)", color: active ? T.mint : T.t2, border: `1px solid ${active ? "rgba(111,224,192,0.4)" : T.hair}` }}>
-                  {c.country}
+        {/* چیپ‌های فیلتر */}
+        {isLive && (topCountries.length > 0 || topTopics.length > 0) && (
+          <div style={{ position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, zIndex: 2, maxWidth: "min(760px, calc(100% - 32px))" }}>
+            {/* کشورها */}
+            {topCountries.length > 0 && (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
+                <span style={{ fontSize: 9, color: T.t3, padding: "4px 6px", alignSelf: "center" }}>کشور:</span>
+                <button onClick={() => setCountryFilter(null)}
+                  style={{ fontSize: 10, padding: "3px 10px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: countryFilter === null ? T.goldDim : "rgba(0,0,0,0.35)", color: countryFilter === null ? T.gold : T.t3, border: `1px solid ${countryFilter === null ? T.goldLine : T.hair}` }}>
+                  همه
                 </button>
-              );
-            })}
+                {topCountries.map(c => {
+                  const active = countryFilter === c.country;
+                  return (
+                    <button key={c.country} onClick={() => setCountryFilter(active ? null : c.country)}
+                      style={{ fontSize: 10, padding: "3px 10px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: active ? "rgba(111,224,192,0.15)" : "rgba(0,0,0,0.35)", color: active ? T.mint : T.t2, border: `1px solid ${active ? "rgba(111,224,192,0.4)" : T.hair}` }}>
+                      {c.country}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {/* موضوعات */}
+            {topTopics.length > 0 && (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
+                <span style={{ fontSize: 9, color: T.t3, padding: "4px 6px", alignSelf: "center" }}>موضوع:</span>
+                <button onClick={() => setTopicFilter(null)}
+                  style={{ fontSize: 10, padding: "3px 10px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: topicFilter === null ? "rgba(139,92,246,0.2)" : "rgba(0,0,0,0.35)", color: topicFilter === null ? T.lavender : T.t3, border: `1px solid ${topicFilter === null ? T.lavender + "60" : T.hair}` }}>
+                  همه
+                </button>
+                {topTopics.map(t => {
+                  const active = topicFilter === t.name;
+                  return (
+                    <button key={t.name} onClick={() => setTopicFilter(active ? null : t.name)}
+                      style={{ fontSize: 10, padding: "3px 10px", borderRadius: T.rPill, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", transition: "all 0.15s", background: active ? "rgba(139,92,246,0.2)" : "rgba(0,0,0,0.35)", color: active ? T.lavender : T.t2, border: `1px solid ${active ? T.lavender + "60" : T.hair}` }}>
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
