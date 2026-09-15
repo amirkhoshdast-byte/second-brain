@@ -104,25 +104,56 @@ export async function GET(req: Request) {
       });
     }
 
-    // موجودیت‌های هر موضوع (person/org/event که در همان اسناد هستند)
     const topicIds = topicRows.rows.map(r => r.topic_id);
-    const entityRows = await c.query<{
-      topic_id: number; entity_id: number; name: string; etype: string; mentions: number
-    }>(`
-      SELECT tm.topic_entity_id topic_id,
-             e.id entity_id, e.name, e.etype,
-             count(DISTINCT m.document_id)::int mentions
-      FROM (
-        SELECT entity_id topic_entity_id, document_id
-        FROM intel.mention WHERE entity_id = ANY($1::int[])
-      ) tm
-      JOIN intel.mention m ON m.document_id = tm.document_id
-      JOIN intel.entity e ON e.id = m.entity_id
-      WHERE e.etype IN ('person','org','event')
-        AND e.id <> tm.topic_entity_id
-      GROUP BY 1,2,3,4
-      ORDER BY 1, mentions DESC
-    `, [topicIds]);
+
+    const [entityRows, docRows, timelineRows, signalRows] = await Promise.all([
+      // موجودیت‌های هر موضوع
+      c.query<{ topic_id: number; entity_id: number; name: string; etype: string; mentions: number }>(`
+        SELECT tm.topic_entity_id topic_id,
+               e.id entity_id, e.name, e.etype,
+               count(DISTINCT m.document_id)::int mentions
+        FROM (
+          SELECT entity_id topic_entity_id, document_id
+          FROM intel.mention WHERE entity_id = ANY($1::int[])
+        ) tm
+        JOIN intel.mention m ON m.document_id = tm.document_id
+        JOIN intel.entity e ON e.id = m.entity_id
+        WHERE e.etype IN ('person','org','event')
+          AND e.id <> tm.topic_entity_id
+        GROUP BY 1,2,3,4
+        ORDER BY 1, mentions DESC
+      `, [topicIds]),
+
+      // اسناد برتر هر موضوع
+      c.query<{ topic_id: number; doc_id: string; title: string; country: string; report_date: string; path: string }>(`
+        SELECT m.entity_id topic_id, d.id::text doc_id,
+               d.title, coalesce(d.country,'') country,
+               to_char(d.report_date,'YYYY-MM-DD') report_date, d.path,
+               row_number() over (partition by m.entity_id order by d.report_date desc nulls last) rn
+        FROM intel.mention m
+        JOIN intel.document d ON d.id = m.document_id
+        WHERE m.entity_id = ANY($1::int[])
+      `, [topicIds]),
+
+      // توزیع ماهانه هر موضوع
+      c.query<{ topic_id: number; ym: string; n: number }>(`
+        SELECT m.entity_id topic_id,
+               to_char(d.report_date,'YYYY-MM') ym,
+               count(*)::int n
+        FROM intel.mention m
+        JOIN intel.document d ON d.id = m.document_id
+        WHERE m.entity_id = ANY($1::int[])
+          AND d.report_date IS NOT NULL
+        GROUP BY 1, 2
+        ORDER BY 1, 2
+      `, [topicIds]),
+
+      // سیگنال‌های هر موضوع
+      c.query<{ topic: string; n: number }>(`
+        SELECT topic, count(*)::int n FROM intel.signal
+        WHERE topic IS NOT NULL GROUP BY topic
+      `),
+    ]);
 
     const byTopic: Record<number, typeof entityRows.rows> = {};
     for (const r of entityRows.rows) {
@@ -130,13 +161,34 @@ export async function GET(req: Request) {
       if (byTopic[r.topic_id].length < 25) byTopic[r.topic_id].push(r);
     }
 
+    const docsByTopic: Record<number, typeof docRows.rows> = {};
+    for (const r of docRows.rows) {
+      if (!docsByTopic[r.topic_id]) docsByTopic[r.topic_id] = [];
+      if (docsByTopic[r.topic_id].length < 6) docsByTopic[r.topic_id].push(r);
+    }
+
+    const timelineByTopic: Record<number, { month: string; n: number }[]> = {};
+    for (const r of timelineRows.rows) {
+      if (!timelineByTopic[r.topic_id]) timelineByTopic[r.topic_id] = [];
+      timelineByTopic[r.topic_id].push({ month: r.ym, n: r.n });
+    }
+
+    const signalMap: Record<string, number> = {};
+    for (const r of signalRows.rows) signalMap[r.topic] = r.n;
+
     return NextResponse.json({
       mode: "topic",
       concepts: topicRows.rows.map(r => ({
         id: r.topic_id, label: r.topic_name, docs: r.doc_count,
+        signals: signalMap[r.topic_name] ?? 0,
         entities: (byTopic[r.topic_id] ?? []).map(e => ({
           id: e.entity_id, name: e.name, etype: e.etype, mentions: e.mentions,
         })),
+        top_docs: (docsByTopic[r.topic_id] ?? []).map(d => ({
+          id: d.doc_id, title: d.title, country: d.country,
+          report_date: d.report_date, path: d.path,
+        })),
+        timeline: timelineByTopic[r.topic_id] ?? [],
       })),
     });
   } catch (err) {
