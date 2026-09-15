@@ -38,6 +38,7 @@ type GraphData = {
   signals?: Array<{ id: string; stype: string; title: string; country: string | null; topic: string | null; confidence: number }>;
   perCountry?: Array<{ country: string; eid: string; name: string; etype: string; mentions: number }>;
   topTopics?: Array<{ name: string; n: number }>;
+  dateRange?: { min_date: string | null; max_date: string | null };
 };
 
 const toneColor: Record<Tone, string> = {
@@ -384,8 +385,11 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
   const [isLive, setIsLive] = useState(false);
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [topicFilter, setTopicFilter] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [topCountries, setTopCountries] = useState<Array<{ country: string; n: number }>>([]);
   const [topTopics, setTopTopics] = useState<Array<{ name: string; n: number }>>([]);
+  const [dbDateRange, setDbDateRange] = useState<{ min: string; max: string } | null>(null);
   const [rawData, setRawData] = useState<GraphData | null>(null);
 
   // ── انیمیشن مداری ─────────────────────────────────────────────────────────
@@ -409,6 +413,8 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
     const params = new URLSearchParams();
     if (countryFilter) params.set("country", countryFilter);
     if (topicFilter)   params.set("topic",   topicFilter);
+    if (dateFrom)      params.set("dateFrom", dateFrom + "-01");
+    if (dateTo)        params.set("dateTo",   dateTo   + "-28");
     const url = `/api/intel/graph${params.size ? "?" + params : ""}`;
     fetch(url)
       .then(r => r.json())
@@ -419,6 +425,12 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
           setTopCountries(data.countries.slice(0, 8));
         }
         if (data.topTopics?.length) setTopTopics(data.topTopics.slice(0, 10));
+        if (data.dateRange?.min_date && !dbDateRange) {
+          setDbDateRange({
+            min: data.dateRange.min_date.slice(0, 7),
+            max: data.dateRange.max_date?.slice(0, 7) ?? "",
+          });
+        }
         const { nodes: n, edges: e } = countryFilter
           ? buildGraph(data)
           : (data.mode === "multi" ? buildMultiGraph(data) : buildGraph(data));
@@ -432,7 +444,7 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countryFilter, topicFilter]);
+  }, [countryFilter, topicFilter, dateFrom, dateTo]);
 
   const [selected, setSelected] = useState<string | null>("indonesia");
   const [views, setViews] = useState<Record<System, boolean>>({ knowledge: true, execution: false });
@@ -812,6 +824,35 @@ export default function IntelligenceGraph({ onOpenChat }: { onOpenChat?: () => v
                 })}
               </div>
             )}
+
+            {/* فیلتر بازه تاریخ */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.32)", borderRadius: T.rPill, padding: "4px 10px", border: `1px solid ${(dateFrom || dateTo) ? T.warn + "55" : T.hair}` }}>
+              <span style={{ fontSize: 9, color: T.t3, whiteSpace: "nowrap" }}>بازه تاریخ:</span>
+              <input
+                type="month"
+                value={dateFrom}
+                min={dbDateRange?.min ?? undefined}
+                max={dbDateRange?.max ?? undefined}
+                onChange={e => setDateFrom(e.target.value)}
+                style={{ background: "transparent", border: "none", outline: "none", color: dateFrom ? T.warn : T.t3, fontSize: 10, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", width: 96 }}
+              />
+              <span style={{ fontSize: 9, color: T.t3 }}>تا</span>
+              <input
+                type="month"
+                value={dateTo}
+                min={dateFrom || dbDateRange?.min || undefined}
+                max={dbDateRange?.max ?? undefined}
+                onChange={e => setDateTo(e.target.value)}
+                style={{ background: "transparent", border: "none", outline: "none", color: dateTo ? T.warn : T.t3, fontSize: 10, cursor: "pointer", fontFamily: "YekanBakh, sans-serif", width: 96 }}
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  style={{ background: "none", border: "none", color: T.t3, cursor: "pointer", fontSize: 12, padding: "0 2px", lineHeight: 1 }}
+                  title="پاک کردن فیلتر تاریخ"
+                >×</button>
+              )}
+            </div>
           </div>
         )}
 

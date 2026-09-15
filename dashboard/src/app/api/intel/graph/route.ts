@@ -17,160 +17,179 @@ function db() {
   return pool;
 }
 
+// ── ساخت dynamic WHERE + params ───────────────────────────────────────────────
+function buildFilter(opts: {
+  dateFrom?: string | null;
+  dateTo?:   string | null;
+  topic?:    string | null;
+  country?:  string | null;
+}) {
+  const clauses: string[] = [];
+  const params: string[] = [];
+
+  const p = () => { params.push(""); return `$${params.length}`; };
+  const add = (val: string, clause: string) => {
+    params[params.length] = val; // will be set below
+    clauses.push(clause);
+    params.push(val);
+    clauses[clauses.length - 1] = clause.replace("__P__", `$${params.length}`);
+    params.pop(); // we added it above, now do it properly
+  };
+
+  // clean builder
+  const parts: { val: string; clause: string }[] = [];
+
+  if (opts.dateFrom) parts.push({ val: opts.dateFrom, clause: "d.report_date >= __P__::date" });
+  if (opts.dateTo)   parts.push({ val: opts.dateTo,   clause: "d.report_date <= __P__::date" });
+  if (opts.topic)    parts.push({ val: opts.topic,    clause: `EXISTS (
+    SELECT 1 FROM intel.mention _tm
+    JOIN intel.entity _te ON _te.id = _tm.entity_id
+    WHERE _tm.document_id = d.id AND _te.etype = 'topic' AND _te.name = __P__
+  )` });
+  if (opts.country)  parts.push({ val: opts.country,  clause: "d.country = __P__" });
+
+  const values: string[] = [];
+  const resolved = parts.map(({ val, clause }) => {
+    values.push(val);
+    return clause.replace("__P__", `$${values.length}`);
+  });
+
+  const where = resolved.length ? resolved.join(" AND ") : "TRUE";
+  return { where, values };
+}
+
 export async function GET(req: NextRequest) {
-  const country = req.nextUrl.searchParams.get("country") ?? null;
-  const topic   = req.nextUrl.searchParams.get("topic")   ?? null;
+  const country  = req.nextUrl.searchParams.get("country")  || null;
+  const topic    = req.nextUrl.searchParams.get("topic")    || null;
+  const dateFrom = req.nextUrl.searchParams.get("dateFrom") || null;
+  const dateTo   = req.nextUrl.searchParams.get("dateTo")   || null;
 
   try {
     const c = db();
 
-    // ── موضوعات برتر — همیشه برگردان (برای چیپ‌های فیلتر) ──────────────────
-    const topTopicsRes = await c.query(`
-      select e.name, count(distinct m.document_id)::int n
-      from intel.entity e
-      join intel.mention m on m.entity_id = e.id
-      where e.etype = 'topic'
-      group by e.name having count(distinct m.document_id) >= 5
-      order by n desc limit 12
-    `);
-    const topTopics = topTopicsRes.rows;
+    const { where: docWhere, values: baseParams } = buildFilter({ dateFrom, dateTo, topic, country });
 
-    // ── ساخت شرط فیلتر مشترک ─────────────────────────────────────────────────
-    // وقتی topic داده شده، اسناد را به آنهایی که این موضوع را دارند محدود می‌کنیم
-    const topicJoin = topic
-      ? `join intel.mention tm on tm.document_id = d.id
-         join intel.entity  te on te.id = tm.entity_id and te.etype='topic' and te.name=$1`
-      : "";
-    const topicParam = topic ? [topic] : [];
+    // ── موضوعات برتر + بازه تاریخ — همیشه برگردان ───────────────────────────
+    const [topTopicsRes, dateRangeRes] = await Promise.all([
+      c.query(`
+        SELECT e.name, count(distinct m.document_id)::int n
+        FROM intel.entity e
+        JOIN intel.mention m ON m.entity_id = e.id
+        WHERE e.etype = 'topic'
+        GROUP BY e.name HAVING count(distinct m.document_id) >= 5
+        ORDER BY n DESC LIMIT 12
+      `),
+      c.query(`
+        SELECT to_char(min(report_date),'YYYY-MM-DD') min_date,
+               to_char(max(report_date),'YYYY-MM-DD') max_date
+        FROM intel.document WHERE report_date IS NOT NULL
+      `),
+    ]);
+    const topTopics = topTopicsRes.rows;
+    const dateRange = dateRangeRes.rows[0] ?? { min_date: null, max_date: null };
 
     if (country) {
-      // ── حالت تک‌کشوری (با فیلتر اختیاری موضوع) ─────────────────────────────
-      const countryParam = topic ? [topic, country] : [country];
-      const countryIdx   = topic ? "$2" : "$1";
+      // ── حالت تک‌کشوری ──────────────────────────────────────────────────────
+      const { where: signalWhere, values: signalParams } = buildFilter({ topic, country });
 
       const [entities, cooccur, signals] = await Promise.all([
         c.query(`
-          select e.id::text, e.etype, e.name, count(m.document_id)::int mentions
-          from intel.entity e
-          join intel.mention m on m.entity_id = e.id
-          join intel.document d on d.id = m.document_id
-          ${topicJoin}
-          where e.etype in ('topic','person','org','event')
-            and d.country = ${countryIdx}
-          group by e.id having count(m.document_id) >= 2
-          order by mentions desc limit 40
-        `, countryParam),
+          SELECT e.id::text, e.etype, e.name, count(m.document_id)::int mentions
+          FROM intel.entity e
+          JOIN intel.mention m ON m.entity_id = e.id
+          JOIN intel.document d ON d.id = m.document_id
+          WHERE e.etype IN ('topic','person','org','event')
+            AND ${docWhere}
+          GROUP BY e.id HAVING count(m.document_id) >= 2
+          ORDER BY mentions DESC LIMIT 40
+        `, baseParams),
         c.query(`
-          select m1.entity_id::text a, m2.entity_id::text b,
+          SELECT m1.entity_id::text a, m2.entity_id::text b,
                  count(distinct m1.document_id)::int w
-          from intel.mention m1
-          join intel.mention m2
-            on m1.document_id = m2.document_id
-           and m1.entity_id < m2.entity_id
-          join intel.document d on d.id = m1.document_id
-          ${topicJoin}
-          where d.country = ${countryIdx}
-          group by 1, 2 having count(distinct m1.document_id) >= 2
-          order by w desc limit 60
-        `, countryParam),
+          FROM intel.mention m1
+          JOIN intel.mention m2
+            ON m1.document_id = m2.document_id
+           AND m1.entity_id < m2.entity_id
+          JOIN intel.document d ON d.id = m1.document_id
+          WHERE ${docWhere}
+          GROUP BY 1, 2 HAVING count(distinct m1.document_id) >= 2
+          ORDER BY w DESC LIMIT 60
+        `, baseParams),
         c.query(`
-          select id::text, stype, title, country, topic, confidence::float
-          from intel.signal where country = ${countryIdx}
-          ${topic ? `and topic = $1` : ""}
-          order by confidence desc limit 8
-        `, countryParam),
+          SELECT s.id::text, s.stype, s.title, s.country, s.topic, s.confidence::float
+          FROM intel.signal s
+          WHERE ${signalWhere || "TRUE"}
+          ORDER BY s.confidence DESC LIMIT 8
+        `, signalParams),
       ]);
       return NextResponse.json({
         ready: true, mode: "single", centerCountry: country,
         countries: [{ country, n: 0 }],
         entities: entities.rows, cooccur: cooccur.rows, signals: signals.rows,
-        topTopics,
+        topTopics, dateRange,
       });
     }
 
-    // ── حالت چندکشوری (با فیلتر اختیاری موضوع) ─────────────────────────────
+    // ── حالت چندکشوری ──────────────────────────────────────────────────────────
+    const { where: signalWhere, values: signalParams } = buildFilter({ topic });
+
     const [countries, entities, cooccur, signals, perCountryEnts] = await Promise.all([
       c.query(`
-        select d.country, count(distinct d.id)::int n
-        from intel.document d
-        ${topicJoin}
-        where d.country is not null and d.country <> ''
-        group by d.country order by n desc limit 8
-      `, topicParam),
+        SELECT d.country, count(distinct d.id)::int n
+        FROM intel.document d
+        WHERE d.country IS NOT NULL AND d.country <> ''
+          AND ${docWhere}
+        GROUP BY d.country ORDER BY n DESC LIMIT 8
+      `, baseParams),
       c.query(`
-        select e.id::text, e.etype, e.name, count(m.document_id)::int mentions
-        from intel.entity e
-        join intel.mention m on m.entity_id = e.id
-        join intel.document d on d.id = m.document_id
-        ${topicJoin}
-        where e.etype in ('topic','person','org','event')
-        group by e.id having count(m.document_id) >= 3
-        order by mentions desc limit 48
-      `, topicParam),
+        SELECT e.id::text, e.etype, e.name, count(m.document_id)::int mentions
+        FROM intel.entity e
+        JOIN intel.mention m ON m.entity_id = e.id
+        JOIN intel.document d ON d.id = m.document_id
+        WHERE e.etype IN ('topic','person','org','event')
+          AND ${docWhere}
+        GROUP BY e.id HAVING count(m.document_id) >= 3
+        ORDER BY mentions DESC LIMIT 48
+      `, baseParams),
       c.query(`
-        select m1.entity_id::text a, m2.entity_id::text b,
+        SELECT m1.entity_id::text a, m2.entity_id::text b,
                count(distinct m1.document_id)::int w
-        from intel.mention m1
-        join intel.mention m2
-          on m1.document_id = m2.document_id
-         and m1.entity_id < m2.entity_id
-        join intel.document d on d.id = m1.document_id
-        ${topicJoin}
-        group by 1, 2 having count(distinct m1.document_id) >= 3
-        order by w desc limit 80
-      `, topicParam),
+        FROM intel.mention m1
+        JOIN intel.mention m2
+          ON m1.document_id = m2.document_id
+         AND m1.entity_id < m2.entity_id
+        JOIN intel.document d ON d.id = m1.document_id
+        WHERE ${docWhere}
+        GROUP BY 1, 2 HAVING count(distinct m1.document_id) >= 3
+        ORDER BY w DESC LIMIT 80
+      `, baseParams),
       c.query(`
-        select id::text, stype, title, country, topic, confidence::float
-        from intel.signal
-        ${topic ? `where topic = $1` : ""}
-        order by confidence desc limit 10
-      `, topicParam),
-      c.query(
-        topic
-          ? `
-            with top_countries as (
-              select d.country from intel.document d
-              join intel.mention tm on tm.document_id = d.id
-              join intel.entity  te on te.id = tm.entity_id and te.etype='topic' and te.name=$1
-              where d.country is not null group by d.country order by count(*) desc limit 8
-            ),
-            ranked as (
-              select d.country, e.id::text eid, e.name, e.etype,
-                     count(m.document_id)::int mentions,
-                     row_number() over (partition by d.country order by count(m.document_id) desc) rn
-              from intel.mention m
-              join intel.entity e on e.id = m.entity_id
-              join intel.document d on d.id = m.document_id
-              join intel.mention tm on tm.document_id = d.id
-              join intel.entity  te on te.id = tm.entity_id and te.etype='topic' and te.name=$1
-              join top_countries tc on tc.country = d.country
-              where e.etype in ('topic','person','org','event')
-              group by d.country, e.id, e.name, e.etype
-              having count(m.document_id) >= 2
-            )
-            select country, eid, name, etype, mentions from ranked where rn <= 6
-          `
-          : `
-            with top_countries as (
-              select country from intel.document
-              where country is not null group by country order by count(*) desc limit 8
-            ),
-            ranked as (
-              select d.country, e.id::text eid, e.name, e.etype,
-                     count(m.document_id)::int mentions,
-                     row_number() over (partition by d.country order by count(m.document_id) desc) rn
-              from intel.mention m
-              join intel.entity e on e.id = m.entity_id
-              join intel.document d on d.id = m.document_id
-              join top_countries tc on tc.country = d.country
-              where e.etype in ('topic','person','org','event')
-              group by d.country, e.id, e.name, e.etype
-              having count(m.document_id) >= 2
-            )
-            select country, eid, name, etype, mentions from ranked where rn <= 6
-          `,
-        topicParam
-      ),
+        SELECT s.id::text, s.stype, s.title, s.country, s.topic, s.confidence::float
+        FROM intel.signal s
+        WHERE ${signalWhere || "TRUE"}
+        ORDER BY s.confidence DESC LIMIT 10
+      `, signalParams),
+      c.query(`
+        WITH top_countries AS (
+          SELECT d.country FROM intel.document d
+          WHERE d.country IS NOT NULL AND ${docWhere}
+          GROUP BY d.country ORDER BY count(*) DESC LIMIT 8
+        ),
+        ranked AS (
+          SELECT d.country, e.id::text eid, e.name, e.etype,
+                 count(m.document_id)::int mentions,
+                 row_number() OVER (PARTITION BY d.country ORDER BY count(m.document_id) DESC) rn
+          FROM intel.mention m
+          JOIN intel.entity e ON e.id = m.entity_id
+          JOIN intel.document d ON d.id = m.document_id
+          JOIN top_countries tc ON tc.country = d.country
+          WHERE e.etype IN ('topic','person','org','event')
+            AND ${docWhere}
+          GROUP BY d.country, e.id, e.name, e.etype
+          HAVING count(m.document_id) >= 2
+        )
+        SELECT country, eid, name, etype, mentions FROM ranked WHERE rn <= 6
+      `, baseParams),
     ]);
 
     return NextResponse.json({
@@ -178,7 +197,7 @@ export async function GET(req: NextRequest) {
       countries: countries.rows, entities: entities.rows,
       cooccur: cooccur.rows, signals: signals.rows,
       perCountry: perCountryEnts.rows,
-      topTopics,
+      topTopics, dateRange,
     });
   } catch (err) {
     return NextResponse.json({ ready: false, error: String(err) }, { status: 200 });
