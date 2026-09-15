@@ -698,11 +698,20 @@ function VaultBrowser({ files, total }: { files: VaultFile[]; total: number }) {
 // ─── Search ────────────────────────────────────────────────────────────────────
 const SEARCH_COUNTRIES = ["پاکستان","افغانستان","چین","قزاقستان","تایلند","اندونزی","ترکیه","آلمان","هند","عراق","سوریه","لبنان","مصر","ژاپن","کره","مالزی","بنگلادش","نیجریه","تانزانیا","سنگال"];
 
+interface FtsDoc {
+  id: string; title: string; path: string;
+  country: string | null; doc_type: string | null; report_date: string | null;
+  producer: string | null; excerpt: string | null; headline: string | null; rank: number;
+}
+
 function SearchPanel() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<QdrantDoc[]>([]);
+  const [ftsResults, setFtsResults] = useState<FtsDoc[]>([]);
   const [searching, setSearching] = useState(false);
+  const [ftsSearching, setFtsSearching] = useState(false);
   const [isSemantic, setIsSemantic] = useState(false);
+  const [searchTab, setSearchTab] = useState<"semantic" | "fts">("semantic");
   const [selected, setSelected] = useState<QdrantDoc | null>(null);
   const [filterCountry, setFilterCountry] = useState("");
   const [filterFrom, setFilterFrom] = useState("");
@@ -712,14 +721,31 @@ function SearchPanel() {
 
   const doSearch = async (q: string) => {
     if (!q.trim()) return;
-    setSearching(true); setResults([]); setSelected(null);
+    setSearching(true); setFtsSearching(true);
+    setResults([]); setFtsResults([]); setSelected(null);
+
     const params = new URLSearchParams({ q });
     if (filterCountry) params.set("country", filterCountry);
     if (filterFrom)    params.set("from", filterFrom);
     if (filterTo)      params.set("to", filterTo);
-    const r = await fetch(`/api/search?${params}`);
-    const d = await r.json();
-    setResults(d.results ?? []); setIsSemantic(d.semantic ?? false); setSearching(false);
+
+    // هر دو جستجو موازی
+    const [semanticResp, ftsResp] = await Promise.allSettled([
+      fetch(`/api/search?${params}`).then(r => r.json()),
+      fetch(`/api/intel/fts?${params}`).then(r => r.json()),
+    ]);
+
+    if (semanticResp.status === "fulfilled") {
+      const d = semanticResp.value;
+      setResults(d.results ?? []);
+      setIsSemantic(d.semantic ?? false);
+    }
+    setSearching(false);
+
+    if (ftsResp.status === "fulfilled") {
+      setFtsResults(ftsResp.value.results ?? []);
+    }
+    setFtsSearching(false);
   };
 
   const hasFilters = !!(filterCountry || filterFrom || filterTo);
@@ -779,23 +805,42 @@ function SearchPanel() {
         </div>
       )}
 
-      {results.length > 0 && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Pill label={isSemantic ? "semantic · bge-m3" : "keyword"} tone={isSemantic ? T.lavender : T.t3} filled />
-          <span style={{ fontSize: 10.5, color: T.t3 }}>{results.length} نتیجه</span>
+      {/* تب‌های جستجو */}
+      {(results.length > 0 || ftsResults.length > 0 || searching || ftsSearching) && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {(["semantic", "fts"] as const).map(tab => {
+            const isActive = searchTab === tab;
+            const count = tab === "semantic" ? results.length : ftsResults.length;
+            const loading = tab === "semantic" ? searching : ftsSearching;
+            const label = tab === "semantic" ? "معنایی" : "متنی";
+            const tone = tab === "semantic" ? T.lavender : T.mint;
+            return (
+              <button key={tab} onClick={() => setSearchTab(tab)} style={{
+                fontSize: 10.5, padding: "4px 12px", borderRadius: T.rPill, cursor: "pointer",
+                fontFamily: "YekanBakh, sans-serif", border: `1px solid ${isActive ? tone + "55" : T.hair}`,
+                background: isActive ? tone + "18" : "transparent",
+                color: isActive ? tone : T.t3, transition: "all 0.15s",
+              }}>
+                {label}
+                {loading
+                  ? <span className="anim-spin" style={{ display: "inline-block", width: 8, height: 8, border: `1.5px solid ${tone}44`, borderTopColor: tone, borderRadius: "50%", marginRight: 4 }} />
+                  : count > 0 ? <span style={{ marginRight: 5, fontSize: 9.5, opacity: 0.8 }}>{count}</span> : null}
+              </button>
+            );
+          })}
           {filterCountry && <Pill label={filterCountry} tone={T.sky} filled />}
         </div>
       )}
 
       <div style={{ display: "flex", gap: 12, flex: 1, overflow: "hidden" }}>
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+
+          {/* ── تب معنایی ── */}
+          {searchTab === "semantic" && (
+            <>
           {searching && <p className="anim-pulse" style={{ textAlign: "center", color: T.mint, fontSize: 12, paddingTop: 40 }}>در حال embedding و جستجوی معنایی…</p>}
           {!searching && results.length === 0 && query && <p style={{ textAlign: "center", color: T.t3, fontSize: 12, paddingTop: 40 }}>نتیجه‌ای یافت نشد</p>}
-          {results.map((doc, i) => {
-            const on = selected?.id === doc.id;
-            const sc = doc.score ?? 0;
-            const scTone = sc > 0.7 ? T.mint : sc > 0.5 ? T.warn : T.t3;
-            return (
+          {results.map((doc, i) => { const on = selected?.id === doc.id; const sc = doc.score ?? 0; const scTone = sc > 0.7 ? T.mint : sc > 0.5 ? T.warn : T.t3; return (
               <div key={doc.id} onClick={() => setSelected(doc)} className="panel" style={{
                 padding: "11px 15px", borderRadius: T.rCtl, cursor: "pointer",
                 borderColor: on ? T.goldLine : T.hair,
@@ -831,6 +876,51 @@ function SearchPanel() {
               </div>
             );
           })}
+            </>
+          )}
+
+          {/* ── تب متنی (PostgreSQL FTS) ── */}
+          {searchTab === "fts" && (
+            <>
+              {ftsSearching && <p className="anim-pulse" style={{ textAlign: "center", color: T.mint, fontSize: 12, paddingTop: 40 }}>در حال جستجوی متنی…</p>}
+              {!ftsSearching && ftsResults.length === 0 && query && <p style={{ textAlign: "center", color: T.t3, fontSize: 12, paddingTop: 40 }}>نتیجه‌ای یافت نشد</p>}
+              {ftsResults.map((doc, i) => (
+                <div key={doc.id} className="panel" style={{
+                  padding: "11px 15px", borderRadius: T.rCtl, cursor: "pointer",
+                  border: `1px solid ${T.hair}`, background: T.panel, transition: "all 0.15s",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.hair2; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.hair; }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{ fontSize: 12, flexShrink: 0, opacity: 0.7 }}>📄</span>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.title}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+                      <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "YekanBakh, monospace" }}>#{i + 1}</span>
+                      {doc.country && <span style={{ fontSize: 9.5, color: T.sky, background: T.sky + "18", border: `1px solid ${T.sky}33`, borderRadius: 4, padding: "1px 5px" }}>{doc.country}</span>}
+                      {doc.report_date && <span style={{ fontSize: 9, color: T.t3 }}>{doc.report_date.slice(0, 7)}</span>}
+                      <button
+                        onClick={() => setActiveDocTitle({ title: doc.title, path: doc.path })}
+                        style={{ fontSize: 9.5, color: T.sky, background: "none", border: `1px solid ${T.sky}44`, borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}
+                      >سند</button>
+                    </div>
+                  </div>
+                  {doc.headline ? (
+                    <p
+                      style={{ fontSize: 10.5, color: T.t3, lineHeight: 1.65, margin: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
+                      dangerouslySetInnerHTML={{ __html: doc.headline }}
+                    />
+                  ) : doc.excerpt ? (
+                    <p style={{ fontSize: 10.5, color: T.t3, lineHeight: 1.65, margin: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      {doc.excerpt}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {selected && (
