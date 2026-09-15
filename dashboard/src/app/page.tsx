@@ -14,6 +14,7 @@ import DocumentTimeline from "@/components/DocumentTimeline";
 import WeeklyDigest from "@/components/WeeklyDigest";
 import DocumentUpload from "@/components/DocumentUpload";
 import AdminPanel from "@/components/AdminPanel";
+import DocDetailModal from "@/components/DocDetailModal";
 import dynamic from "next/dynamic";
 const JarvisOrb = dynamic(() => import("@/components/JarvisOrb"), { ssr: false });
 
@@ -707,6 +708,7 @@ function SearchPanel() {
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [activeDocTitle, setActiveDocTitle] = useState<{title:string;path?:string} | null>(null);
 
   const doSearch = async (q: string) => {
     if (!q.trim()) return;
@@ -728,6 +730,7 @@ function SearchPanel() {
   };
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
       <form onSubmit={(e) => { e.preventDefault(); doSearch(query); }} className="panel" style={{ display: "flex", gap: 8, padding: 8, alignItems: "center" }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)}
@@ -814,6 +817,12 @@ function SearchPanel() {
                       </span>
                     )}
                     <span style={{ fontSize: 9.5, color: T.t3, fontFamily: "YekanBakh, monospace" }}>#{i + 1}</span>
+                    {doc.title && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setActiveDocTitle({ title: doc.title!, path: doc.path }); }}
+                        style={{ fontSize: 9.5, color: T.sky, background: "none", border: `1px solid ${T.sky}44`, borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}
+                      >سند</button>
+                    )}
                   </div>
                 </div>
                 <p style={{ fontSize: 10.5, color: T.t3, lineHeight: 1.65, margin: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
@@ -850,6 +859,15 @@ function SearchPanel() {
         )}
       </div>
     </div>
+    {activeDocTitle && (
+      <DocDetailModal
+        title={activeDocTitle.title}
+        path={activeDocTitle.path}
+        onClose={() => setActiveDocTitle(null)}
+        onNavigate={t => setActiveDocTitle({ title: t })}
+      />
+    )}
+    </>
   );
 }
 
@@ -857,6 +875,7 @@ function SearchPanel() {
 function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean }) {
   const [filterType, setFilterType] = useState("all");
   const [selected, setSelected] = useState<QdrantDoc | null>(null);
+  const [activeDocTitle, setActiveDocTitle] = useState<{title:string;path?:string} | null>(null);
   const types = [...new Set(docs.map((d) => d.entity_type).filter(Boolean))];
   const filtered = docs.filter((d) => filterType === "all" || d.entity_type === filterType);
 
@@ -879,6 +898,7 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
   );
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
       <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{
@@ -916,6 +936,12 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
                 <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
                   {doc.period_id && <span style={{ fontSize: 9.5, fontFamily: "YekanBakh, monospace", color: T.t3 }}>{doc.period_id}</span>}
                   {doc.classification && <Pill label={doc.classification} tone={classTone[doc.classification] ?? T.t3} filled />}
+                  {doc.title && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setActiveDocTitle({ title: doc.title!, path: doc.path }); }}
+                      style={{ fontSize: 9.5, color: T.sky, background: "none", border: `1px solid ${T.sky}44`, borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}
+                    >سند</button>
+                  )}
                 </div>
               </div>
             );
@@ -958,6 +984,15 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
         )}
       </div>
     </div>
+    {activeDocTitle && (
+      <DocDetailModal
+        title={activeDocTitle.title}
+        path={activeDocTitle.path}
+        onClose={() => setActiveDocTitle(null)}
+        onNavigate={t => setActiveDocTitle({ title: t })}
+      />
+    )}
+    </>
   );
 }
 

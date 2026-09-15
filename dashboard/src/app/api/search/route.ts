@@ -36,7 +36,22 @@ export async function GET(req: NextRequest) {
         })
       : hits;
 
-    const results = filtered.map((p: Record<string, unknown>) => ({
+    // ── Reranking: ترکیب score معنایی با تطابق کلیدواژه ──────────────────
+    const tokens = q.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    const reranked = filtered
+      .map((p: Record<string, unknown>) => {
+        const payload = p.payload as Record<string, string>;
+        const text = `${payload.title ?? ""} ${payload.chunk_text ?? payload.text_preview ?? ""}`.toLowerCase();
+        const keywordScore = tokens.length > 0
+          ? tokens.filter(t => text.includes(t)).length / tokens.length
+          : 0;
+        const semanticScore = typeof p.score === "number" ? (p.score as number) : 0;
+        const combined = semanticScore * 0.7 + keywordScore * 0.3;
+        return { ...p, _combined: combined };
+      })
+      .sort((a, b) => b._combined - a._combined);
+
+    const results = reranked.map((p: Record<string, unknown>) => ({
       id: p.id,
       score: typeof p.score === "number" ? Math.round((p.score as number) * 100) / 100 : 0,
       ...(p.payload as Record<string, unknown>),
