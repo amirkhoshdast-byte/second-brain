@@ -157,24 +157,71 @@ def body_text(text: str) -> str:
 
 
 
+# ─── تبدیل تاریخ شمسی به میلادی ─────────────────────────────────────────────
+def _jalali_to_gregorian(jy: int, jm: int, jd: int) -> Optional[date]:
+    """تبدیل تاریخ شمسی به میلادی (الگوریتم کتف‌جدول)."""
+    try:
+        from datetime import timedelta
+        jy += 1595
+        days = -355779 + 365 * jy + (jy // 33) * 8 + (jy % 33 + 3) // 4
+        if jm <= 6:
+            days += (jm - 1) * 31
+        else:
+            days += (jm - 7) * 30 + 186
+        days += jd
+        gy = 400 * ((days - 1) // 146097)
+        days = (days - 1) % 146097
+        if days > 36524:
+            days -= 1
+            gy += 100 * (days // 36524)
+            days %= 36524
+            if days >= 365:
+                days += 1
+        gy += 4 * (days // 1461)
+        days %= 1461
+        if days > 365:
+            gy += (days - 1) // 365
+            days = (days - 1) % 365
+        gd = days + 1
+        leap = (gy % 4 == 0 and gy % 100 != 0) or gy % 400 == 0
+        sal_a = [0, 31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        gm = 0
+        while gm < len(sal_a) and gd > sal_a[gm]:
+            gd -= sal_a[gm]
+            gm += 1
+        return date(gy, gm, gd)
+    except Exception:
+        return None
+
+
+def _reasonable(d: date) -> bool:
+    """تاریخ معقول برای اسناد این سیستم: ۲۰۱۰ تا ۲ سال آینده."""
+    return date(2010, 1, 1) <= d <= date(date.today().year + 2, 12, 31)
+
+
 # ─── لنگرهای درون‌یابی news ID ───────────────────────────────────────────────
 # شناسه‌های خبر farhangemelal.icro.ir به‌صورت خطی با زمان رشد می‌کنند.
 # این لنگرها از محتوای مقاله استنتاج شده‌اند (رویداد همان تاریخ پوشش داده شده).
 # دقت: ±۱ ماه — برای نمودار روند ماهانه کافی است.
 _ICRO_ANCHORS = [
-    (24975, date(2025, 9,  3)),  # رژه ۸۰ سالگرد پایان جنگ جهانی در چین
-    (25147, date(2025, 9, 27)),  # هفته ادبیات آنلاین چین ۲۰۲۵
-    (25305, date(2025, 10, 15)), # رویدادهای فرهنگی مهر ۱۴۰۴
-    (25821, date(2025, 12, 17)), # آمار مسافرت بدون ویزا به چین
-    (26119, date(2026, 2, 14)),  # موضع شیعیان پاکستان
-    (26318, date(2026, 5, 18)),  # سفر آقاخان به پاکستان
-    (26792, date(2026, 7, 21)),  # سیاست، قدرت و فوتبال
+    (19500, date(2023,  6,  1)),  # تخمین برای IDs قدیمی‌تر
+    (21000, date(2024,  1, 15)),  # تخمین میانی
+    (22500, date(2024,  7,  1)),  # تخمین میانی
+    (23500, date(2024, 11,  1)),  # تخمین میانی
+    (24120, date(2025,  3, 21)),  # اول فروردین ۱۴۰۴
+    (24975, date(2025,  9,  3)),  # رژه ۸۰ سالگرد پایان جنگ جهانی در چین
+    (25147, date(2025,  9, 27)),  # هفته ادبیات آنلاین چین ۲۰۲۵
+    (25305, date(2025, 10, 15)),  # رویدادهای فرهنگی مهر ۱۴۰۴
+    (25821, date(2025, 12, 17)),  # آمار مسافرت بدون ویزا به چین
+    (26119, date(2026,  2, 14)),  # موضع شیعیان پاکستان
+    (26318, date(2026,  5, 18)),  # سفر آقاخان به پاکستان
+    (26792, date(2026,  7, 21)),  # سیاست، قدرت و فوتبال
 ]
 
 
 def _estimate_from_icro_id(news_id: int) -> Optional[date]:
     """درون‌یابی خطی تاریخ از شناسه‌ی خبر icro."""
-    import math
+    from datetime import timedelta
     pts = _ICRO_ANCHORS
     if news_id <= pts[0][0]:
         id1, d1 = pts[0]; id2, d2 = pts[1]
@@ -186,9 +233,9 @@ def _estimate_from_icro_id(news_id: int) -> Optional[date]:
             if pts[i][0] <= news_id <= pts[i + 1][0]:
                 id1, d1 = pts[i]; id2, d2 = pts[i + 1]
                 break
-    from datetime import timedelta
     t = (news_id - id1) / (id2 - id1)
-    return d1 + timedelta(days=round(t * (d2 - d1).days))
+    result = d1 + timedelta(days=round(t * (d2 - d1).days))
+    return result if _reasonable(result) else None
 
 
 def find_date(fm: dict, text: str) -> Optional[date]:
@@ -196,32 +243,49 @@ def find_date(fm: dict, text: str) -> Optional[date]:
     تاریخ گزارش.
 
     ترتیب اولویت:
-    ۱. frontmatter (created / published / date) — صریح‌ترین منبع
-    ۲. بخش «## Source» — تاریخ ISO اگر در توضیح منبع ذکر شده باشد
-    ۳. درون‌یابی از شناسه‌ی خبر icro — برای ۴۹۸ از ۵۰۳ سند پیکره موجود است؛
+    ۱. frontmatter (created / published / date) — فقط اگر تاریخ میلادی معقول باشد
+       (سال ۲۰۱۰–۲۰۲۸)؛ اگر سال شمسی (۱۳۸۰–۱۴۱۰) بود تبدیل می‌شود.
+       تاریخ‌های تاریخی (مثل ۱۹۷۹) که ربطی به تاریخ انتشار ندارند رد می‌شوند.
+    ۲. بخش «## Source» — تاریخ ISO میلادی (2xxx) اگر ذکر شده باشد.
+    ۳. درون‌یابی از شناسه‌ی خبر icro — برای اکثر اسناد پیکره موجود است؛
        دقت ±۱ ماه که برای نمودار روند ماهانه کافی است.
 
     مسیر رد‌شده:
     - mtime فایل: sync دسته‌ای همه‌ی اسناد را در یک روز جمع می‌کرد.
-    - regex تاریخ داخل *متن* مقاله: تاریخ رویدادهای تاریخی (مثل «۲۰۱۸»)
-      را به‌عنوان تاریخ انتشار گرفت — ناسازگار با واقعیت.
+    - regex تاریخ داخل *متن* مقاله: تاریخ رویدادهای تاریخی را به‌عنوان
+      تاریخ انتشار گرفت — ناسازگار با واقعیت.
     """
     # ۱. frontmatter
     for k in ("created", "published", "date"):
         v = fm.get(k)
-        if isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}", v):
-            try:
-                return date.fromisoformat(v[:10])
-            except ValueError:
-                pass
+        if not isinstance(v, str):
+            continue
+        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", v)
+        if not m:
+            continue
+        y, mo, dy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            # تاریخ شمسی (سال ۱۳۸۰–۱۴۱۵)
+            if 1380 <= y <= 1415:
+                converted = _jalali_to_gregorian(y, mo, dy)
+                if converted and _reasonable(converted):
+                    return converted
+            else:
+                parsed = date(y, mo, dy)
+                if _reasonable(parsed):
+                    return parsed
+        except ValueError:
+            pass
 
-    # ۲. بخش Source (تاریخ ISO صریح)
+    # ۲. بخش Source (تاریخ ISO میلادی صریح — فقط 20xx)
     src_block = re.search(r"##\s*Source.*?(?=\n##\s|\Z)", text, re.S)
     if src_block:
         m = re.search(r"(20\d{2})-(\d{2})-(\d{2})", src_block.group(0))
         if m:
             try:
-                return date.fromisoformat(m.group(0))
+                parsed = date.fromisoformat(m.group(0))
+                if _reasonable(parsed):
+                    return parsed
             except ValueError:
                 pass
 
