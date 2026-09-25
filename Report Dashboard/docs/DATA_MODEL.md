@@ -5,7 +5,7 @@
 **نسخه:** 1.0  
 **وضعیت:** **[پیشنهادی — نیازمند تأیید]**  
 **مبنا:** بخش ۴.۴ و ۴.۶ سند اجرایی `PLATFORM.md`  
-**DDL کامل:** [`docs/data-model/ddl/`](../data-model/ddl/)
+**DDL کامل:** [`docs/data-model/ddl/`](../../docs/data-model/ddl/)
 
 ---
 

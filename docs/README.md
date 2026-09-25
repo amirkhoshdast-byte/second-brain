@@ -12,7 +12,7 @@
 | [`ASSUMPTIONS.md`](./ASSUMPTIONS.md) | فرض‌های صریح درباره BPMS، مقیاس و سؤالات هنوز بی‌پاسخ |
 | [`core/`](./core/) | مؤلفه‌های هسته مشترک: هستان‌شناسی، رجیستری موجودیت، امنیت، حاکمیت |
 | [`product-a-second-brain/`](./product-a-second-brain/) | مستندات محصول A — مغز دوم سازمانی |
-| [`product-b-performance/`](./product-b-performance/) | مستندات محصول B — گزارش‌دهی و تحلیل عملکرد واحدها |
+| [`Report Dashboard/docs/`](../Report%20Dashboard/docs/) | مستندات محصول B — گزارش‌دهی و تحلیل عملکرد واحدها |
 | [`decisions/`](./decisions/) | تصمیم‌های معماری ثبت‌شده (ADR) |
 | [`data-model/ddl/`](./data-model/ddl/) | DDL پایگاه‌داده محصول B (سه لایه: landing, validated, warehouse) |
 | [`obsidian-templates/`](./obsidian-templates/) | الگوهای Obsidian برای هر نوع موجودیت دانشی |

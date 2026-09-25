@@ -239,4 +239,4 @@ provenance:
 - تعریف کامل موجودیت‌ها → [`core/ONTOLOGY.md`](./core/ONTOLOGY.md)
 - شناسه‌های صادرشده و جدول Alias → [`core/ENTITY_REGISTRY.md`](./core/ENTITY_REGISTRY.md)
 - قواعد دسترسی روی `classification` → [`core/SECURITY.md`](./core/SECURITY.md)
-- مدل داده کامل محصول B که از این قرارداد پیروی می‌کند → [`product-b-performance/DATA_MODEL.md`](./product-b-performance/DATA_MODEL.md)
+- مدل داده کامل محصول B که از این قرارداد پیروی می‌کند → [`Report Dashboard/docs/DATA_MODEL.md`](../Report%20Dashboard/docs/DATA_MODEL.md)
