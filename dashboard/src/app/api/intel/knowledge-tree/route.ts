@@ -22,36 +22,75 @@ export async function GET(req: Request) {
     const c = db();
 
     if (forceMode === "country") {
-      const countryRows = await c.query<{ country: string; doc_count: number }>(`
-        SELECT coalesce(country,'نامشخص') country, count(*)::int doc_count
-        FROM intel.document
-        GROUP BY 1 ORDER BY 2 DESC LIMIT 20
-      `);
-      const entityByCountry = await c.query<{
-        country: string; entity_id: number; name: string; etype: string; mentions: number
-      }>(`
-        SELECT coalesce(d.country,'نامشخص') country,
-               e.id entity_id, e.name, e.etype,
-               count(m.document_id)::int mentions
-        FROM intel.document d
-        JOIN intel.mention m ON m.document_id = d.id
-        JOIN intel.entity e ON e.id = m.entity_id
-        WHERE e.etype IN ('person','org','event')
-        GROUP BY 1,2,3,4
-        ORDER BY 1, mentions DESC
-      `);
-      const byCountry: Record<string, typeof entityByCountry.rows> = {};
-      for (const r of entityByCountry.rows) {
+      const [countryRows, entityByCountryRes, topDocsRes, timelineRes, signalRes] = await Promise.all([
+        c.query<{ country: string; doc_count: number }>(`
+          SELECT coalesce(country,'نامشخص') country, count(*)::int doc_count
+          FROM intel.document
+          GROUP BY 1 ORDER BY 2 DESC LIMIT 20
+        `),
+        c.query<{ country: string; entity_id: number; name: string; etype: string; mentions: number }>(`
+          SELECT coalesce(d.country,'نامشخص') country,
+                 e.id entity_id, e.name, e.etype,
+                 count(m.document_id)::int mentions
+          FROM intel.document d
+          JOIN intel.mention m ON m.document_id = d.id
+          JOIN intel.entity e ON e.id = m.entity_id
+          WHERE e.etype IN ('person','org','event')
+          GROUP BY 1,2,3,4
+          ORDER BY 1, mentions DESC
+        `),
+        c.query<{ country: string; doc_id: string; title: string; report_date: string; path: string; rn: number }>(`
+          SELECT coalesce(d.country,'نامشخص') country,
+                 d.id::text doc_id, d.title,
+                 to_char(d.report_date,'YYYY-MM-DD') report_date, d.path,
+                 row_number() OVER (PARTITION BY d.country ORDER BY d.report_date DESC NULLS LAST) rn
+          FROM intel.document d
+        `),
+        c.query<{ country: string; ym: string; n: number }>(`
+          SELECT coalesce(country,'نامشخص') country,
+                 to_char(report_date,'YYYY-MM') ym, count(*)::int n
+          FROM intel.document
+          WHERE report_date IS NOT NULL
+          GROUP BY 1,2 ORDER BY 1,2
+        `),
+        c.query<{ country: string; n: number }>(`
+          SELECT coalesce(country,'نامشخص') country, count(*)::int n
+          FROM intel.signal WHERE country IS NOT NULL GROUP BY 1
+        `),
+      ]);
+
+      const byCountry: Record<string, typeof entityByCountryRes.rows> = {};
+      for (const r of entityByCountryRes.rows) {
         if (!byCountry[r.country]) byCountry[r.country] = [];
         byCountry[r.country].push(r);
       }
+      const docsByCountry: Record<string, typeof topDocsRes.rows> = {};
+      for (const r of topDocsRes.rows) {
+        if (r.rn > 6) continue;
+        if (!docsByCountry[r.country]) docsByCountry[r.country] = [];
+        docsByCountry[r.country].push(r);
+      }
+      const timelineByCountry: Record<string, { month: string; n: number }[]> = {};
+      for (const r of timelineRes.rows) {
+        if (!timelineByCountry[r.country]) timelineByCountry[r.country] = [];
+        timelineByCountry[r.country].push({ month: r.ym, n: r.n });
+      }
+      const signalByCountry: Record<string, number> = {};
+      for (const r of signalRes.rows) signalByCountry[r.country] = r.n;
+
       return NextResponse.json({
         mode: "country",
         concepts: countryRows.rows.map(r => ({
           id: r.country, label: r.country, docs: r.doc_count,
+          signals: signalByCountry[r.country] ?? 0,
           entities: (byCountry[r.country] ?? []).slice(0, 25).map(e => ({
             id: e.entity_id, name: e.name, etype: e.etype, mentions: e.mentions,
           })),
+          top_docs: (docsByCountry[r.country] ?? []).map(d => ({
+            id: d.doc_id, title: d.title, country: r.country,
+            report_date: d.report_date, path: d.path,
+          })),
+          timeline: timelineByCountry[r.country] ?? [],
         })),
       });
     }
@@ -69,39 +108,10 @@ export async function GET(req: Request) {
     `);
 
     if (topicRows.rows.length === 0) {
-      // fallback: گروه‌بندی بر اساس کشور
-      const countryRows = await c.query<{ country: string; doc_count: number }>(`
-        SELECT coalesce(country,'نامشخص') country, count(*)::int doc_count
-        FROM intel.document
-        GROUP BY 1 ORDER BY 2 DESC LIMIT 20
-      `);
-      const entityByCountry = await c.query<{
-        country: string; entity_id: number; name: string; etype: string; mentions: number
-      }>(`
-        SELECT coalesce(d.country,'نامشخص') country,
-               e.id entity_id, e.name, e.etype,
-               count(m.document_id)::int mentions
-        FROM intel.document d
-        JOIN intel.mention m ON m.document_id = d.id
-        JOIN intel.entity e ON e.id = m.entity_id
-        WHERE e.etype IN ('person','org','event')
-        GROUP BY 1,2,3,4
-        ORDER BY 1, mentions DESC
-      `);
-      const byCountry: Record<string, typeof entityByCountry.rows> = {};
-      for (const r of entityByCountry.rows) {
-        if (!byCountry[r.country]) byCountry[r.country] = [];
-        byCountry[r.country].push(r);
-      }
-      return NextResponse.json({
-        mode: "country",
-        concepts: countryRows.rows.map(r => ({
-          id: r.country, label: r.country, docs: r.doc_count,
-          entities: (byCountry[r.country] ?? []).slice(0, 20).map(e => ({
-            id: e.entity_id, name: e.name, etype: e.etype, mentions: e.mentions,
-          })),
-        })),
-      });
+      // fallback: redirect to country mode
+      const url2 = new URL(req.url);
+      url2.searchParams.set("mode", "country");
+      return GET(new Request(url2.toString()));
     }
 
     const topicIds = topicRows.rows.map(r => r.topic_id);
