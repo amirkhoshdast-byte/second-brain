@@ -19,6 +19,16 @@ interface RelatedDoc {
   shared: number;
 }
 
+interface SimilarDoc {
+  id: string;
+  title: string;
+  country: string | null;
+  report_date: string | null;
+  doc_type: string | null;
+  ai_summary: string | null;
+  similarity: number;
+}
+
 interface DocData {
   id: string;
   title: string;
@@ -75,6 +85,8 @@ export default function DocDetailModal({ title, path, onClose, onNavigate }: Pro
   const [doc, setDoc]           = useState<DocData | null>(null);
   const [entities, setEntities] = useState<Entity[]>([]);
   const [related, setRelated]   = useState<RelatedDoc[]>([]);
+  const [similar, setSimilar]   = useState<SimilarDoc[]>([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [activeEtype, setActiveEtype] = useState<string | null>(null);
 
@@ -83,6 +95,7 @@ export default function DocDetailModal({ title, path, onClose, onNavigate }: Pro
     setDoc(null);
     setEntities([]);
     setRelated([]);
+    setSimilar([]);
     const param = p
       ? `path=${encodeURIComponent(p)}`
       : `title=${encodeURIComponent(t)}`;
@@ -93,6 +106,19 @@ export default function DocDetailModal({ title, path, onClose, onNavigate }: Pro
           setDoc(data.doc);
           setEntities(data.entities ?? []);
           setRelated(data.related ?? []);
+          // بارگذاری اسناد مشابه با embedding
+          const docId = data.doc?.id;
+          const docPath = data.doc?.path;
+          if (docId || docPath) {
+            setLoadingSimilar(true);
+            const sp = docId
+              ? `id=${encodeURIComponent(docId)}`
+              : `path=${encodeURIComponent(docPath)}`;
+            fetch(`/api/intel/similar?${sp}`)
+              .then(r => r.json())
+              .then(sd => { setSimilar(sd.similar ?? []); setLoadingSimilar(false); })
+              .catch(() => setLoadingSimilar(false));
+          }
         }
         setLoading(false);
       })
@@ -232,6 +258,57 @@ export default function DocDetailModal({ title, path, onClose, onNavigate }: Pro
                     </button>
                   ))}
                 </div>
+              </section>
+            )}
+
+            {/* اسناد مشابه — vector similarity */}
+            {(loadingSimilar || similar.length > 0) && (
+              <section style={{ marginTop: 8 }}>
+                <SectionLabel>اسناد مشابه <span style={{ fontSize: 9, color: T.t4, fontWeight: 400, marginRight: 6 }}>بر اساس شباهت محتوایی (embedding)</span></SectionLabel>
+                {loadingSimilar && (
+                  <p style={{ fontSize: 11, color: T.t3, padding: "8px 0" }}>در حال جستجو…</p>
+                )}
+                {!loadingSimilar && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {similar.map(s => {
+                      const pct = Math.round(s.similarity * 100);
+                      const barColor = pct >= 70 ? T.mint : pct >= 50 ? T.lavender : T.t3;
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => { if (onNavigate) { onNavigate(s.title); load(s.title); } }}
+                          style={{
+                            background: T.panel, border: `1px solid ${T.hair}`,
+                            borderRadius: 8, padding: "10px 13px", cursor: "pointer",
+                            textAlign: "right", width: "100%",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 5 }}>
+                            {/* نوار شباهت */}
+                            <div style={{ width: 32, flexShrink: 0 }}>
+                              <div style={{ background: T.hair, borderRadius: 3, height: 4 }}>
+                                <div style={{ width: `${pct}%`, background: barColor, height: "100%", borderRadius: 3 }} />
+                              </div>
+                              <span style={{ fontSize: 8, color: barColor, fontVariantNumeric: "tabular-nums" }}>{pct}٪</span>
+                            </div>
+                            <span style={{ flex: 1, fontSize: 11.5, color: T.t1, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {s.title}
+                            </span>
+                            <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                              {s.country    && <Chip label={s.country}                  color={T.sky} tiny />}
+                              {s.report_date && <Chip label={s.report_date.slice(0, 7)} color={T.t3}  tiny />}
+                            </div>
+                          </div>
+                          {s.ai_summary && (
+                            <p style={{ fontSize: 10, color: T.t3, margin: 0, lineHeight: 1.6, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                              {s.ai_summary}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             )}
           </div>
