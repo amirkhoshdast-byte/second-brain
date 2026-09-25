@@ -412,6 +412,11 @@ export default function InternationalDashboard({
                 color: T.t2, borderRadius: T.rCtl, padding: "7px 0",
                 fontSize: 10, cursor: "pointer", fontFamily: "YekanBakh, sans-serif",
               }}>نمایش در گراف</button>
+              <button onClick={() => window.open("/api/intel/report", "_blank")} style={{
+                flex: 1, background: "transparent", border: `1px solid ${T.mint}55`,
+                color: T.mint, borderRadius: T.rCtl, padding: "7px 0",
+                fontSize: 10, cursor: "pointer", fontFamily: "YekanBakh, sans-serif",
+              }}>📄 گزارش PDF</button>
             </div>
           </Card>
         </div>
