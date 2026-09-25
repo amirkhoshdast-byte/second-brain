@@ -13,6 +13,7 @@ import CountryCompare from "@/components/CountryCompare";
 import DocumentTimeline from "@/components/DocumentTimeline";
 import WeeklyDigest from "@/components/WeeklyDigest";
 import DocumentUpload from "@/components/DocumentUpload";
+import ForecastPanel from "@/components/ForecastPanel";
 import AdminPanel from "@/components/AdminPanel";
 import DocDetailModal from "@/components/DocDetailModal";
 import dynamic from "next/dynamic";
@@ -154,6 +155,7 @@ function Sidebar({ active, setActive, counts, isMobile, open, onClose }: {
     { id: "graph",     icon: "⬡", label: "گراف هوشمند",       badge: undefined },
     { id: "chat",      icon: "◈", label: "دستیار هوشمند",     badge: undefined },
     { id: "coverage",  icon: "▤", label: "پوشش دانش",         badge: undefined },
+    { id: "forecast",  icon: "◈", label: "پیش‌بینی روند",     badge: undefined },
     { id: "signals",   icon: "◉", label: "سیگنال‌ها",          badge: counts.newSignals || undefined },
     { id: "compare",   icon: "⇌", label: "مقایسه کشورها",      badge: undefined },
     { id: "digest",    icon: "⊞", label: "خلاصه هفتگی",        badge: undefined },
@@ -1276,13 +1278,14 @@ export default function Dashboard() {
           minHeight: 0,
           // گراف تمام فضای بوم را می‌گیرد، پس حاشیه‌ی صفحه برایش صفر است
           padding: active === "chat" ? "12px 0 0"
-            : (active === "graph" || active === "world" || active === "coverage") ? 0
+            : (active === "graph" || active === "world" || active === "coverage" || active === "forecast") ? 0
             : (active === "upload" || active === "admin") ? 0
             : (isSmall ? "10px 10px 16px" : "14px 26px 22px"),
         }}>
           {active === "world"     && <InternationalDashboard reportCount={indexedDocs ?? null} onOpenGraph={() => setActive("graph")} onOpenChat={() => setActive("chat")} />}
           {active === "discover"  && <Discover />}
           {active === "coverage"  && <KnowledgeCoverage />}
+          {active === "forecast"  && <ForecastPanel />}
           {active === "signals"   && <Signals />}
           {active === "compare"   && <CountryCompare />}
           {active === "digest"    && <WeeklyDigest />}
