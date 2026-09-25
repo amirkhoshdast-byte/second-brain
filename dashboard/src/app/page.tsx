@@ -1086,6 +1086,48 @@ function DocumentsPanel({ docs, loading }: { docs: QdrantDoc[]; loading: boolean
   );
 }
 
+// ─── Signal Alert Toast ────────────────────────────────────────────────────────
+interface NewSignal { id: string; stype: string; title: string; country: string | null; topic: string | null; confidence: number; created_at: string; }
+
+function SignalAlert({ signals, onDismiss, onView }: { signals: NewSignal[]; onDismiss: () => void; onView: () => void }) {
+  const top = signals[0];
+  const stypeLabel: Record<string, string> = { trend: "روند", actor: "بازیگر", geo: "جغرافیایی", surge: "جهش", correlation: "همبستگی" };
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+      zIndex: 9999, background: T.panel, border: `1px solid ${T.warn}55`,
+      borderRadius: T.rCard, padding: "14px 18px", minWidth: 300, maxWidth: 420,
+      boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px ${T.warn}22`,
+      display: "flex", flexDirection: "column", gap: 10,
+      animation: "slideUp 0.25s ease",
+    }}>
+      <style>{`@keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(16px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>◉</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.warn }}>
+            {signals.length > 1 ? `${signals.length} سیگنال جدید` : "سیگنال جدید"}
+          </span>
+        </div>
+        <button onClick={onDismiss} style={{ background: "none", border: "none", color: T.t3, cursor: "pointer", fontSize: 16, padding: 0 }}>×</button>
+      </div>
+      <div style={{ borderTop: `1px solid ${T.hair}`, paddingTop: 8 }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: T.t1, margin: "0 0 4px" }}>{top.title}</p>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {top.country && <span style={{ fontSize: 9.5, color: T.sky, background: T.sky + "18", border: `1px solid ${T.sky}33`, borderRadius: 4, padding: "1px 6px" }}>{top.country}</span>}
+          {top.stype && <span style={{ fontSize: 9.5, color: T.t3, background: T.hair + "44", borderRadius: 4, padding: "1px 6px" }}>{stypeLabel[top.stype] ?? top.stype}</span>}
+          <span style={{ fontSize: 9.5, color: top.confidence >= 0.85 ? T.mint : T.warn }}>{Math.round(top.confidence * 100)}٪</span>
+        </div>
+      </div>
+      <button onClick={onView} style={{
+        background: T.warn + "18", border: `1px solid ${T.warn}44`, color: T.warn,
+        borderRadius: T.rCtl, padding: "6px 14px", fontSize: 11, cursor: "pointer",
+        fontFamily: "YekanBakh, sans-serif",
+      }}>مشاهده سیگنال‌ها</button>
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [active, setActive] = useState("chat");
@@ -1097,6 +1139,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [signalCount, setSignalCount] = useState(0);
   const [seenSignalCount, setSeenSignalCount] = useState<number | null>(null);
+  const [newSignalAlert, setNewSignalAlert] = useState<NewSignal[]>([]);
   const { isMobile, isSmall } = useBreakpoint();
 
   useEffect(() => {
@@ -1116,13 +1159,32 @@ export default function Dashboard() {
     });
   }, []);
 
-  // وقتی کاربر صفحه سیگنال را باز کرد، badge را پاک کن
+  // وقتی کاربر صفحه سیگنال را باز کرد، badge و alert را پاک کن
   useEffect(() => {
     if (active === "signals" && signalCount > 0) {
       setSeenSignalCount(signalCount);
-      try { localStorage.setItem("seen_signal_count", String(signalCount)); } catch {}
+      setNewSignalAlert([]);
+      try {
+        localStorage.setItem("seen_signal_count", String(signalCount));
+        localStorage.setItem("signals_last_seen", new Date().toISOString());
+      } catch {}
     }
   }, [active, signalCount]);
+
+  // polling سیگنال‌های جدید هر ۵ دقیقه
+  useEffect(() => {
+    const checkNew = async () => {
+      try {
+        const since = localStorage.getItem("signals_last_seen") ?? "";
+        const res = await fetch(`/api/intel/signals/new?since=${encodeURIComponent(since)}&min_confidence=0.7`).then(r => r.json());
+        if (res.count > 0) setNewSignalAlert(res.signals);
+      } catch {}
+    };
+    // بررسی اولیه بعد از ۳ ثانیه (صبر برای لود کامل)
+    const t0 = setTimeout(checkNew, 3000);
+    const interval = setInterval(checkNew, 5 * 60 * 1000);
+    return () => { clearTimeout(t0); clearInterval(interval); };
+  }, []);
 
   const heads: Record<string, { eyebrow: string; title: string }> = {
     world:     { eyebrow: "رصد چشم‌انداز بین‌الملل", title: "داشبورد بین‌الملل" },
@@ -1140,6 +1202,7 @@ export default function Dashboard() {
   const indexedDocs = stats?.indexed_documents;
 
   return (
+    <>
     <div dir="rtl" style={{
       display: "flex", height: "100vh", overflow: "hidden", background: T.canvas,
       color: T.t1, fontFamily: "YekanBakh, system-ui, sans-serif", position: "relative",
@@ -1241,5 +1304,13 @@ export default function Dashboard() {
         </div>
       </main>
     </div>
+    {newSignalAlert.length > 0 && (
+      <SignalAlert
+        signals={newSignalAlert}
+        onDismiss={() => setNewSignalAlert([])}
+        onView={() => { setActive("signals"); setNewSignalAlert([]); }}
+      />
+    )}
+    </>
   );
 }
