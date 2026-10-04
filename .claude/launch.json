@@ -3,7 +3,10 @@
   "configurations": [
     {
       "name": "dashboard",
-      "url": "http://localhost:4000"
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 4000,
+      "cwd": "/Users/amirhossein/Documents/Claud/dashboard"
     }
   ]
 }
