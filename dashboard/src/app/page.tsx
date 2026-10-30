@@ -18,6 +18,7 @@ import AdminPanel from "@/components/AdminPanel";
 import DocDetailModal from "@/components/DocDetailModal";
 import dynamic from "next/dynamic";
 const JarvisOrb = dynamic(() => import("@/components/JarvisOrb"), { ssr: false });
+const VoiceAssistant = dynamic(() => import("@/components/VoiceAssistant"), { ssr: false });
 
 const VAULT_NAME = "Cultural Intelligence Hub";
 
@@ -291,6 +292,7 @@ function ChatPanel() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<Record<number, 1 | -1>>({});
+  const [showVoice, setShowVoice] = useState(false);
   // مقاله‌ای که کاربر از روی چیپ منبع باز کرده
   const [article, setArticle] = useState<{ path: string; title: string; text: string | null } | null>(null);
 
@@ -519,6 +521,12 @@ function ChatPanel() {
                 fontFamily: "YekanBakh, sans-serif", caretColor: T.gold,
               }}
             />
+            <button onClick={() => setShowVoice(true)} title="صحبت با دستیار" style={{
+              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+              background: `${T.mint}18`, border: `1px solid ${T.mint}44`, color: T.mint,
+              cursor: "pointer", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 15, transition: "all 0.16s",
+            }}>🎙️</button>
             <button onClick={send} disabled={loading || !input.trim()} style={{
               width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
               background: T.goldDim, border: `1px solid ${T.goldLine}`, color: T.gold,
@@ -542,6 +550,9 @@ function ChatPanel() {
         </div>
       </div>
     </div>
+
+    {/* دستیار صوتی */}
+    {showVoice && <VoiceAssistant onClose={() => setShowVoice(false)} />}
 
     {/* پنل مقاله — با کلیک روی چیپ منبع باز می‌شود */}
     {article && (
