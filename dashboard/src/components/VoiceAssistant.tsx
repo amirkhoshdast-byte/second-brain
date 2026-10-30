@@ -1,8 +1,6 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { T } from "@/lib/theme";
-
-type Msg = { role: "user" | "assistant"; text: string };
 
 declare global {
   interface Window {
@@ -10,276 +8,167 @@ declare global {
     webkitSpeechRecognition: new () => SpeechRecognition;
   }
 }
-
 interface SpeechRecognition extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
+  lang: string; continuous: boolean; interimResults: boolean;
+  start(): void; stop(): void;
   onresult: ((e: SpeechRecognitionEvent) => void) | null;
   onend: (() => void) | null;
   onerror: ((e: { error: string }) => void) | null;
 }
-
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
 }
-
 interface SpeechRecognitionResultList {
   length: number;
-  [index: number]: { [index: number]: { transcript: string }; isFinal: boolean };
+  [i: number]: { [j: number]: { transcript: string }; isFinal: boolean };
 }
 
-function useSpeechRecognition() {
+interface Props {
+  onResult: (text: string) => void;
+  onClose: () => void;
+}
+
+export default function VoiceAssistant({ onResult, onClose }: Props) {
+  const [phase, setPhase] = useState<"ready" | "listening" | "done" | "error">("ready");
+  const [interim, setInterim] = useState("");
+  const [errMsg, setErrMsg] = useState("");
   const recRef = useRef<SpeechRecognition | null>(null);
 
-  const create = useCallback(() => {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SR) return null;
-    const r = new SR();
-    r.lang = "fa-IR";
-    r.continuous = false;
-    r.interimResults = true;
-    recRef.current = r;
-    return r;
-  }, []);
-
-  return { create, recRef };
-}
-
-function speak(text: string, onEnd?: () => void) {
-  window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = "fa-IR";
-  utt.rate = 0.95;
-  const voices = window.speechSynthesis.getVoices();
-  const fa = voices.find(v => v.lang.startsWith("fa")) ?? voices.find(v => v.lang.startsWith("ar"));
-  if (fa) utt.voice = fa;
-  if (onEnd) utt.onend = onEnd;
-  window.speechSynthesis.speak(utt);
-}
-
-export default function VoiceAssistant({ onClose }: { onClose: () => void }) {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [status, setStatus] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
-  const [interim, setInterim] = useState("");
-  const [history, setHistory] = useState<{ role: string; content: string }[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const { create } = useSpeechRecognition();
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs, interim]);
-
   const startListening = useCallback(() => {
-    if (status !== "idle") return;
-    window.speechSynthesis.cancel();
-    const rec = create();
-    if (!rec) {
-      alert("مرورگر شما از تشخیص صدا پشتیبانی نمی‌کند");
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!SR) {
+      setErrMsg("مرورگر شما از تشخیص صدا پشتیبانی نمی‌کند — Chrome را امتحان کنید");
+      setPhase("error");
       return;
     }
 
-    setStatus("listening");
+    const rec = new SR();
+    rec.lang = "fa-IR";
+    rec.continuous = false;
+    rec.interimResults = true;
+    recRef.current = rec;
+
+    let collected = "";
+    setPhase("listening");
     setInterim("");
 
     rec.onresult = (e) => {
-      let final = "";
-      let inter = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) final += t;
-        else inter += t;
-      }
-      setInterim(inter);
-      if (final) {
-        setInterim("");
-        rec.stop();
-        handleQuery(final.trim());
-      }
+      let all = "";
+      for (let i = 0; i < e.results.length; i++) all += e.results[i][0].transcript;
+      collected = all;
+      setInterim(all);
     };
 
     rec.onerror = (e) => {
-      console.error("speech error:", e.error);
-      setStatus("idle");
-      setInterim("");
+      recRef.current = null;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setErrMsg("دسترسی میکروفون رد شد — در نوار آدرس Chrome روی 🔒 کلیک کنید و Allow کنید");
+      } else if (e.error === "no-speech") {
+        setErrMsg("چیزی شنیده نشد — دوباره امتحان کنید");
+      } else {
+        setErrMsg(`خطا: ${e.error}`);
+      }
+      setPhase("error");
     };
 
     rec.onend = () => {
-      if (status === "listening") setStatus("idle");
+      recRef.current = null;
+      const text = collected.trim();
+      if (text) {
+        setPhase("done");
+        setTimeout(() => { onResult(text); onClose(); }, 500);
+      } else if (phase !== "error") {
+        setErrMsg("چیزی شنیده نشد — دوباره امتحان کنید");
+        setPhase("error");
+      }
     };
 
     rec.start();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, history]);
-
-  const handleQuery = useCallback(async (text: string) => {
-    if (!text) return;
-    const userMsg: Msg = { role: "user", text };
-    setMsgs(prev => [...prev, userMsg]);
-    setStatus("thinking");
-
-    const newHistory = [...history, { role: "user", content: text }];
-
-    try {
-      const res = await fetch("/api/rag", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: text, history }),
-      });
-
-      const data = await res.json();
-      const answer: string = data.answer ?? data.error ?? "پاسخی دریافت نشد";
-      const assistantMsg: Msg = { role: "assistant", text: answer };
-
-      setMsgs(prev => [...prev, assistantMsg]);
-      setHistory([...newHistory, { role: "assistant", content: answer }]);
-      setStatus("speaking");
-      speak(answer, () => setStatus("idle"));
-    } catch {
-      const errMsg: Msg = { role: "assistant", text: "خطا در دریافت پاسخ" };
-      setMsgs(prev => [...prev, errMsg]);
-      setStatus("idle");
-    }
-  }, [history]);
-
-  const statusLabel = {
-    idle: "برای صحبت لمس کنید",
-    listening: "در حال گوش دادن…",
-    thinking: "در حال جستجو در اسناد…",
-    speaking: "در حال پاسخ دادن…",
-  }[status];
-
-  const pulseColor = {
-    idle: T.t4,
-    listening: T.mint,
-    thinking: T.gold,
-    speaking: T.lavender,
-  }[status];
+  }, [onResult, onClose, phase]);
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 9999,
-      background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "flex-end",
-      padding: "0 0 32px",
-    }}>
-      {/* دکمه بستن */}
-      <button onClick={onClose} style={{
-        position: "absolute", top: 20, left: 20,
-        background: "transparent", border: "none",
-        color: T.t3, fontSize: 22, cursor: "pointer",
-      }}>✕</button>
-
-      {/* تاریخچه مکالمه */}
-      <div style={{
-        width: "100%", maxWidth: 680,
-        flex: 1, overflowY: "auto",
-        padding: "60px 24px 24px",
-        display: "flex", flexDirection: "column", gap: 12,
-      }}>
-        {msgs.length === 0 && (
-          <div style={{
-            textAlign: "center", color: T.t4, fontSize: 13,
-            marginTop: "auto", paddingBottom: 40,
-          }}>
-            سوالی بپرسید — از محتوای اسناد پاسخ می‌دهم
-          </div>
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 99999,
+        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 20,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* دایره اصلی */}
+      <div style={{ position: "relative", width: 110, height: 110 }}>
+        {phase === "listening" && (
+          <>
+            <div style={{ position:"absolute", inset:-14, borderRadius:"50%", border:`2px solid ${T.mint}33`, animation:"ripple 1.5s ease-out infinite" }} />
+            <div style={{ position:"absolute", inset:-6, borderRadius:"50%", border:`2px solid ${T.mint}55`, animation:"ripple 1.5s .5s ease-out infinite" }} />
+          </>
         )}
-        {msgs.map((m, i) => (
-          <div key={i} style={{
-            display: "flex",
-            justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-          }}>
-            <div style={{
-              maxWidth: "80%",
-              background: m.role === "user"
-                ? `${T.mint}22`
-                : `${T.surface}ee`,
-              border: `1px solid ${m.role === "user" ? T.mint + "44" : T.hair}`,
-              borderRadius: m.role === "user"
-                ? "18px 18px 4px 18px"
-                : "18px 18px 18px 4px",
-              padding: "10px 16px",
-              fontSize: 13,
-              color: T.t1,
-              lineHeight: 1.7,
-              direction: "rtl",
-            }}>
-              {m.text}
-            </div>
-          </div>
-        ))}
-
-        {/* interim در حال گوش دادن */}
-        {interim && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <div style={{
-              maxWidth: "80%",
-              background: `${T.mint}11`,
-              border: `1px dashed ${T.mint}44`,
-              borderRadius: "18px 18px 4px 18px",
-              padding: "10px 16px",
-              fontSize: 13,
-              color: T.t3,
-              direction: "rtl",
-            }}>
-              {interim}
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* وضعیت */}
-      <div style={{
-        fontSize: 11, color: pulseColor,
-        marginBottom: 16, letterSpacing: ".06em",
-        transition: "color .3s",
-      }}>
-        {statusLabel}
-      </div>
-
-      {/* دکمه میکروفون */}
-      <button
-        onClick={startListening}
-        disabled={status === "thinking"}
-        style={{
-          width: 80, height: 80,
-          borderRadius: "50%",
-          background: status === "listening"
-            ? `radial-gradient(circle, ${T.mint}44, ${T.mint}22)`
-            : status === "speaking"
-            ? `radial-gradient(circle, ${T.lavender}44, ${T.lavender}22)`
-            : `radial-gradient(circle, ${T.surface}, ${T.bg})`,
-          border: `2px solid ${pulseColor}`,
-          cursor: status === "thinking" ? "wait" : "pointer",
-          fontSize: 32,
+        <div style={{
+          width: 110, height: 110, borderRadius: "50%",
+          background: phase === "done" ? `${T.mint}22`
+            : phase === "error" ? "#f8717122"
+            : phase === "listening" ? `${T.mint}18`
+            : `${T.surface}`,
+          border: `2px solid ${
+            phase === "done" ? T.mint
+            : phase === "error" ? "#f87171"
+            : phase === "listening" ? T.mint + "99"
+            : T.hair}`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: status === "listening"
-            ? `0 0 0 12px ${T.mint}22, 0 0 0 24px ${T.mint}11`
-            : "none",
+          fontSize: 40, cursor: phase === "ready" ? "pointer" : "default",
           transition: "all .3s",
         }}
-      >
-        {status === "thinking" ? "⟳" : status === "speaking" ? "🔊" : "🎙️"}
-      </button>
-
-      {/* پاک کردن مکالمه */}
-      {msgs.length > 0 && (
-        <button
-          onClick={() => { setMsgs([]); setHistory([]); }}
-          style={{
-            marginTop: 16, background: "transparent",
-            border: "none", color: T.t4,
-            fontSize: 11, cursor: "pointer",
-          }}
+          onClick={phase === "ready" ? startListening : undefined}
         >
-          پاک کردن مکالمه
-        </button>
+          {phase === "done" ? "✓" : phase === "error" ? "✕" : "🎙️"}
+        </div>
+      </div>
+
+      {/* متن */}
+      <div style={{ textAlign: "center", direction: "rtl", maxWidth: 360 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 600, marginBottom: 8,
+          color: phase === "error" ? "#f87171" : T.t1,
+        }}>
+          {phase === "ready" && "روی میکروفون کلیک کنید و صحبت کنید"}
+          {phase === "listening" && "در حال گوش دادن…"}
+          {phase === "done" && "دریافت شد — در حال ارسال…"}
+          {phase === "error" && errMsg}
+        </div>
+
+        {interim && phase === "listening" && (
+          <div style={{ fontSize: 12, color: T.mint, lineHeight: 1.8 }}>{interim}</div>
+        )}
+      </div>
+
+      {/* دکمه‌ها */}
+      {phase === "error" && (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => { setPhase("ready"); setErrMsg(""); setInterim(""); }} style={{
+            background: `${T.mint}22`, border: `1px solid ${T.mint}55`,
+            color: T.mint, borderRadius: 8, padding: "7px 18px", fontSize: 12, cursor: "pointer",
+          }}>دوباره امتحان</button>
+          <button onClick={onClose} style={{
+            background: "transparent", border: `1px solid ${T.hair}`,
+            color: T.t3, borderRadius: 8, padding: "7px 18px", fontSize: 12, cursor: "pointer",
+          }}>بستن</button>
+        </div>
       )}
+
+      {(phase === "ready" || phase === "listening") && (
+        <button onClick={onClose} style={{
+          background: "transparent", border: "none",
+          color: T.t4, fontSize: 11, cursor: "pointer",
+        }}>لغو</button>
+      )}
+
+      <style>{`
+        @keyframes ripple {
+          0% { transform:scale(1); opacity:1; }
+          100% { transform:scale(1.6); opacity:0; }
+        }
+      `}</style>
     </div>
   );
 }

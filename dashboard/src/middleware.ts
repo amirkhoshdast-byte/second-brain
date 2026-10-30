@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SECRET = process.env.AUTH_SECRET ?? "fallback-secret";
 const COOKIE = "sb_session";
-const PUBLIC  = ["/login", "/api/auth/login"];
+const PUBLIC  = ["/login", "/api/auth/login", "/api/v1/"];
 
 async function verifyToken(token: string): Promise<boolean> {
   try {

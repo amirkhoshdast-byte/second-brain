@@ -326,9 +326,40 @@ function ChatPanel() {
     }
   };
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const q = input.trim(); setInput(""); setLoading(true);
+  const sendText = async (q: string) => {
+    if (!q.trim() || loading) return;
+    setInput(""); setLoading(true);
+    setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
+    let text = ""; let sources: Message["sources"] = [];
+    try {
+      const res = await fetch("/api/rag", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })) }),
+      });
+      const reader = res.body?.getReader(); const dec = new TextDecoder();
+      if (!reader) throw new Error("no body");
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        const chunk = dec.decode(value);
+        for (const line of chunk.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const d = line.slice(6).trim(); if (d === "[DONE]") continue;
+          try {
+            const j = JSON.parse(d);
+            if (j.token) { text += j.token; setMessages(m => { const c = [...m]; c[c.length-1] = { ...c[c.length-1], content: text }; return c; }); }
+            if (j.sources) { sources = j.sources; setMessages(m => { const c = [...m]; c[c.length-1] = { ...c[c.length-1], sources }; return c; }); }
+          } catch { /* skip */ }
+        }
+      }
+    } catch (e) {
+      setMessages(m => { const c=[...m]; c[c.length-1]={...c[c.length-1],content:`خطا: ${e}`}; return c; });
+    } finally { setLoading(false); setTimeout(() => inputRef.current?.focus(), 50); }
+  };
+
+  const send = async (overrideText?: string) => {
+    const q = (overrideText ?? input).trim();
+    if (!q || loading) return;
+    setInput(""); setLoading(true);
     setMessages((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "" }]);
     let text = ""; let sources: Message["sources"] = [];
     try {
@@ -552,7 +583,10 @@ function ChatPanel() {
     </div>
 
     {/* دستیار صوتی */}
-    {showVoice && <VoiceAssistant onClose={() => setShowVoice(false)} />}
+    {showVoice && <VoiceAssistant
+      onResult={(text) => { setShowVoice(false); setTimeout(() => send(text), 100); }}
+      onClose={() => setShowVoice(false)}
+    />}
 
     {/* پنل مقاله — با کلیک روی چیپ منبع باز می‌شود */}
     {article && (
