@@ -1,226 +1,271 @@
-# SETUP.md — راه‌اندازی محیط توسعه محلی
+# مغز دوم سازمانی — راهنمای کامل نصب و راه‌اندازی
 
-> **هدف:** راه‌اندازی کامل پلتفرم هوش سازمانی روی macOS با Apple Silicon (M1/M2/M3).  
-> **مبنا:** بخش ۳۱ سند محصول A و بخش ۶.۴ سند اجرایی `PLATFORM.md`.  
-> **[پیشنهادی — نیازمند تأیید]**
+> نسخه: فاز ۴ کامل | آخرین بروزرسانی: نوامبر ۲۰۲۶  
+> مخزن: https://github.com/amirkhoshdast-byte/second-brain
+
+---
+
+## معماری سیستم
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   داشبورد Next.js                    │
+│              http://localhost:4000                   │
+└──────────┬──────────────┬───────────────────────────┘
+           │              │
+    ┌──────▼──────┐  ┌────▼──────────┐
+    │ PostgreSQL  │  │    Qdrant      │
+    │  port 5434  │  │  port 6333     │
+    │ (اسناد/     │  │ (vector store) │
+    │  موجودیت‌ها)│  └───────────────┘
+    └─────────────┘
+           │
+    ┌──────▼──────┐
+    │   Ollama    │
+    │ port 11434  │
+    │ (LLM/embed) │
+    └─────────────┘
+```
 
 ---
 
 ## پیش‌نیازها
 
-| ابزار | نسخه حداقل | نحوه نصب |
-|---|---|---|
-| macOS | Sequoia 15+ | — |
-| Docker Desktop | 4.28+ | [docker.com/products/docker-desktop](https://docker.com) |
-| Homebrew | هر نسخه | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
-| Ollama | 0.3+ | [ollama.com](https://ollama.com) |
-| Python | 3.11+ | `brew install python@3.11` |
+| نرم‌افزار | نسخه | توضیح |
+|-----------|------|-------|
+| Docker Desktop | ۲۹+ | برای PostgreSQL و Qdrant |
+| Node.js | ۲۶+ | برای داشبورد |
+| Python | ۳.۹+ | برای pipeline‌ها |
+| Ollama | آخرین | برای LLM و embedding |
 
 ---
 
-## گام ۱ — کلون مخزن
+## مرحله ۱ — کلون کردن مخزن
 
 ```bash
-git clone <url-repo> orgplatform
-cd orgplatform
+git clone https://github.com/amirkhoshdast-byte/second-brain.git
+cd second-brain
 ```
 
 ---
 
-## گام ۲ — تنظیم متغیرهای محیطی
+## مرحله ۲ — راه‌اندازی Docker (PostgreSQL + Qdrant)
 
 ```bash
+# کپی فایل محیطی
 cp .env.example .env
+
+# ویرایش .env و تنظیم رمزها
+# POSTGRES_PASSWORD=...
+# QDRANT_API_KEY=...
+# APP_PASSWORD=...
+# AUTH_SECRET=...
+
+# راه‌اندازی سرویس‌ها
+docker compose up -d postgres qdrant
 ```
 
-فایل `.env` را باز کنید و **همه مقادیر `changeme-*`** را با رمزهای واقعی جایگزین کنید.  
-این فایل را هرگز commit نکنید.
-
----
-
-## گام ۳ — راه‌اندازی Ollama (Native — نه Docker)
-
-Ollama باید روی macOS به‌صورت Native اجرا شود تا از GPU و ANE شتاب بگیرد:
-
-```bash
-# نصب (اگر نصب نشده)
-brew install ollama
-
-# اجرای سرویس
-ollama serve
-```
-
-در یک ترمینال دیگر، مدل‌های لازم را دانلود کنید:
-
-```bash
-# مدل زبانی برای تست (روی ۱۸GB RAM)
-ollama pull qwen3:8b
-
-# مدل embedding BGE-M3
-ollama pull bge-m3
-# یا از طریق Python (توصیه‌شده برای benchmark):
-pip install sentence-transformers
-```
-
-بررسی اجرا:
-```bash
-curl http://localhost:11434/api/tags
-```
-
----
-
-## گام ۴ — راه‌اندازی سرویس‌های Docker
-
-```bash
-docker compose up -d
-```
-
-بررسی وضعیت:
+**بررسی:**
 ```bash
 docker compose ps
-```
-
-همه سرویس‌ها باید `healthy` یا `running` باشند. اگر سرویسی `starting` ماند:
-```bash
-docker compose logs <service-name>
+# باید postgres و qdrant در وضعیت healthy باشند
 ```
 
 ---
 
-## گام ۵ — راه‌اندازی پایگاه داده
+## مرحله ۳ — نصب Ollama و مدل‌ها
 
-DDL سه‌لایه به‌صورت خودکار هنگام اولین اجرای PostgreSQL اجرا می‌شود (از طریق `docker-entrypoint-initdb.d`).
-
-بررسی:
 ```bash
-docker exec -it orgplatform-postgres psql -U orgplatform -c "\dn"
+# نصب Ollama از ollama.com
+# سپس:
+ollama pull qwen3:8b        # مدل اصلی چت/استخراج
+ollama pull bge-m3           # مدل embedding
 ```
 
-باید سه schema را ببینید: `landing`, `validated`, `warehouse`.
-
-اگر Schema وجود نداشت، دستی اجرا کنید:
+**بررسی:**
 ```bash
-docker exec -i orgplatform-postgres psql -U orgplatform -d orgplatform \
-  < docs/data-model/ddl/landing.sql
-
-docker exec -i orgplatform-postgres psql -U orgplatform -d orgplatform \
-  < docs/data-model/ddl/validated.sql
-
-docker exec -i orgplatform-postgres psql -U orgplatform -d orgplatform \
-  < docs/data-model/ddl/warehouse.sql
+ollama list
+# باید qwen3:8b و bge-m3 نشان دهد
 ```
 
 ---
 
-## گام ۶ — تست Qdrant
+## مرحله ۴ — راه‌اندازی داشبورد
 
 ```bash
-# بررسی سلامت
-curl http://localhost:6333/readyz
+cd dashboard
+npm install
+npm run dev
+# داشبورد روی http://localhost:4000 بالا می‌آید
+```
 
-# ایجاد Collection اولیه برای محصول A
-curl -X PUT http://localhost:6333/collections/org_documents \
-  -H "api-key: $(grep QDRANT_API_KEY .env | cut -d= -f2)" \
+**متغیرهای محیطی داشبورد** (`dashboard/.env.local`):
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5434
+POSTGRES_DB=orgplatform
+POSTGRES_USER=orgplatform
+POSTGRES_PASSWORD=<رمز شما>
+
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=<کلید شما>
+
+EMBEDDING_MODEL=bge-m3
+QDRANT_COLLECTION=org_documents_bge
+
+APP_PASSWORD=<رمز ورود داشبورد>
+AUTH_SECRET=<یک رشته تصادفی ۶۴ کاراکتری>
+```
+
+---
+
+## مرحله ۵ — ساخت collection در Qdrant
+
+```bash
+cd scripts
+python3 reindex_bge.py --init-only
+# collection org_documents_bge با ابعاد ۱۰۲۴ ساخته می‌شود
+```
+
+---
+
+## مرحله ۶ — ساختار Vault (پایگاه اسناد)
+
+اسناد باید در این مسیر باشند:
+```
+/Users/<شما>/Documents/My Second Brain/Cultural Intelligence Hub/
+├── 05-Reports/          ← گزارش‌های رسمی
+├── 05-Social-Listening/ ← پایش اجتماعی
+├── 06-Meetings/         ← صورتجلسه رایزنی‌ها
+├── 07-Insights/         ← تحلیل‌ها
+├── 09-Event/            ← رویدادها
+└── Raw_Web/             ← محتوای وب
+```
+
+> فرمت فایل‌ها: **Markdown (.md)**  
+> برای PDF/Word: از صفحه آپلود داشبورد یا اسکریپت `bulk_import.py` استفاده کنید
+
+---
+
+## مرحله ۷ — اجرای pipeline اولیه
+
+```bash
+cd /path/to/second-brain
+
+# متغیرهای محیطی
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5434
+export POSTGRES_DB=orgplatform
+export POSTGRES_USER=orgplatform
+export POSTGRES_PASSWORD=<رمز>
+export QDRANT_URL=http://localhost:6333
+export QDRANT_API_KEY=<کلید>
+export VAULT_PATH="/Users/<شما>/Documents/My Second Brain/Cultural Intelligence Hub"
+
+# pipeline کامل
+bash scripts/nightly_pipeline.sh
+```
+
+**یا هر مرحله جداگانه:**
+```bash
+python3 scripts/extract.py          # استخراج متن + خلاصه AI
+python3 scripts/entity_resolve.py   # ادغام موجودیت‌های تکراری
+python3 scripts/synthesize.py       # تولید سیگنال‌ها
+python3 scripts/reindex_bge.py      # ایندکس vector
+```
+
+---
+
+## مرحله ۸ — زمان‌بندی خودکار (Cron)
+
+```bash
+# هر شنبه ساعت ۲ بامداد
+crontab -e
+# اضافه کنید:
+0 2 * * 6 /path/to/second-brain/scripts/nightly_pipeline.sh >> ~/Library/Logs/orgplatform/cron.log 2>&1
+```
+
+---
+
+## ویژگی‌های سیستم
+
+| ویژگی | مسیر | توضیح |
+|-------|------|-------|
+| چت RAG | `/` → دستیار هوشمند | پرسش از پایگاه دانش |
+| داشبورد بین‌الملل | `/` → داشبورد بین‌الملل | آمار و فیلتر کشور |
+| گراف هوشمند | `/` → گراف هوشمند | شبکه موجودیت‌ها |
+| پیش‌بینی روند | `/` → پیش‌بینی روند | سری زمانی ماهانه |
+| پوشش دانش | `/` → پوشش دانش | نقشه coverage |
+| گزارش PDF | دکمه در داشبورد بین‌الملل | صادرات PDF |
+| اسناد مشابه | در modal سند | vector similarity |
+| دستیار صوتی | دکمه 🎙️ در چت | ورودی صوتی |
+| API خارجی | `/api/v1/...` | با API key |
+
+---
+
+## API خارجی
+
+**ساخت API key (از داشبورد با login):**
+```bash
+curl -X POST http://localhost:4000/api/admin/apikeys \
+  -H "Cookie: sb_session=<token>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "vectors": {
-      "size": 1024,
-      "distance": "Cosine"
-    }
-  }'
+  -d '{"label":"نام کلید"}'
 ```
 
-اندازه vector (`1024`) برای BGE-M3 است. برای jina-v3 عدد متفاوت است — مستندات مدل را بررسی کنید.
-
----
-
-## گام ۷ — دسترسی به سرویس‌ها
-
-| سرویس | آدرس | اعتبار |
-|---|---|---|
-| Open WebUI (رابط RAG) | http://localhost:3000 | طبق `.env` |
-| n8n (Automation) | http://localhost:5678 | طبق `.env` |
-| Qdrant Dashboard | http://localhost:6333/dashboard | API Key از `.env` |
-| PostgreSQL | localhost:5432 | طبق `.env` |
-| Redis | localhost:6379 | طبق `.env` |
-| Ollama | http://localhost:11434 | بدون احراز هویت |
-
----
-
-## گام ۸ — تست سریع Pipeline
-
-### تست Ollama:
+**استفاده:**
 ```bash
-curl http://localhost:11434/api/generate \
-  -d '{"model": "qwen3:8b", "prompt": "سلام، آیا فارسی می‌دانی؟", "stream": false}'
-```
+# لیست اسناد
+curl "http://localhost:4000/api/v1/documents?country=افغانستان&limit=10" \
+  -H "Authorization: Bearer sb_<کلید>"
 
-### تست Qdrant + Embedding (Python):
-```python
-from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient
+# جستجوی semantic
+curl "http://localhost:4000/api/v1/search?q=حقوق+زنان" \
+  -H "Authorization: Bearer sb_<کلید>"
 
-model = SentenceTransformer("BAAI/bge-m3")
-client = QdrantClient("http://localhost:6333", api_key="<QDRANT_API_KEY>")
+# سیگنال‌ها
+curl "http://localhost:4000/api/v1/signals?limit=20" \
+  -H "Authorization: Bearer sb_<کلید>"
 
-text = "دیپلماسی فرهنگی ترکیه در سال ۱۴۰۵"
-vector = model.encode(text, normalize_embeddings=True).tolist()
-print(f"Vector dim: {len(vector)}")  # باید ۱۰۲۴ باشد
+# موجودیت‌ها
+curl "http://localhost:4000/api/v1/entities?type=person&min_count=5" \
+  -H "Authorization: Bearer sb_<کلید>"
 ```
 
 ---
 
-## رفع مشکلات رایج
+## عیب‌یابی
 
-| مشکل | راه‌حل |
-|---|---|
-| Open WebUI به Ollama وصل نمی‌شود | مطمئن شوید `ollama serve` در حال اجراست؛ `host.docker.internal` روی Docker Desktop 4.28+ کار می‌کند |
-| PostgreSQL DDL اجرا نشد | پوشه `docs/data-model/ddl/` را بررسی کنید — باید فقط `.sql` داشته باشد |
-| Qdrant از حافظه خارج شد | حجم داده را کاهش دهید یا `QDRANT__STORAGE__MEMORY_LIMIT` را تنظیم کنید |
-| n8n Secure Cookie Error | `N8N_HOST` باید `localhost` باشد نه IP |
-| مدل embedding کند است | روی M3 Pro با BGE-M3 انتظار ~۲۰۰ms هر document داشته باشید — طبیعی است |
+| خطا | علت | راه‌حل |
+|-----|-----|--------|
+| `ECONNREFUSED 5434` | PostgreSQL خاموش | `docker compose up -d postgres` |
+| `ECONNREFUSED 6333` | Qdrant خاموش | `docker compose up -d qdrant` |
+| `connection refused 11434` | Ollama خاموش | `ollama serve` |
+| `service-not-allowed` در ویس | میکروفون بلاک | Chrome → 🔒 → Microphone → Allow |
+| داشبورد روی `/login` می‌ماند | cookie منقضی | دوباره لاگین کنید |
 
 ---
 
-## کتابخانه تقویم شمسی (برای `dim_period`)
-
-برای محاسبه دقیق مرز فصل‌های شمسی:
+## بکاپ دیتابیس
 
 ```bash
-pip install jdatetime
+# بکاپ PostgreSQL
+docker exec orgplatform-postgres pg_dump -U orgplatform orgplatform \
+  > backup_$(date +%Y%m%d).sql
+
+# بکاپ Qdrant (volume)
+docker run --rm -v orgplatform_qdrant_data:/data \
+  -v $(pwd):/backup alpine \
+  tar czf /backup/qdrant_backup_$(date +%Y%m%d).tar.gz /data
 ```
-
-```python
-import jdatetime
-from datetime import date
-
-# تبدیل ابتدای ۱۴۰۵ به میلادی
-start = jdatetime.date(1405, 1, 1).togregorian()
-print(start)  # ۲۰۲۶-۰۳-۲۱
-```
-
-مقادیر seed در `warehouse.sql` را با خروجی این کد تأیید کنید.
 
 ---
 
-## ساختار Obsidian Vault
+## اطلاعات فنی
 
-Obsidian باید جداگانه روی macOS نصب شود. ساختار Vault:
-
-```bash
-mkdir -p ~/OrgBrain/{00_Inbox,01_Countries,02_Organizations,03_Persons}
-mkdir -p ~/OrgBrain/{04_Topics,05_Religions,06_Events,07_Reports,08_Sources}
-mkdir -p ~/OrgBrain/{09_Signals,10_Insights,11_Decisions,12_Actions}
-mkdir -p ~/OrgBrain/{13_Projects,14_Meetings,15_Special-Cases,90_Templates,99_System}
-
-# کپی الگوها به 90_Templates
-cp docs/obsidian-templates/*.md ~/OrgBrain/90_Templates/
-```
-
-Obsidian را باز کنید و `~/OrgBrain` را به‌عنوان Vault انتخاب کنید.
-
----
-
-## گام بعدی
-
-پس از راه‌اندازی موفق، مرجع بعدی `docs/product-a-second-brain/INGESTION.md` است — Pipeline ورود اولین ۲۰ تا ۵۰ سند نمونه ترکیه به Qdrant و Obsidian.
+- **مدل LLM:** qwen3:8b (Ollama)
+- **مدل Embedding:** bge-m3 (1024 dim)
+- **Vector Collection:** org_documents_bge
+- **DB Schema:** intel.document, intel.entity, intel.mention, intel.signal, intel.api_keys
+- **Auth:** HMAC-SHA256 cookie (sb_session)
+- **Framework:** Next.js 16 + TypeScript
